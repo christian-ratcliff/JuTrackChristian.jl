@@ -71,7 +71,7 @@ function ADlinepass!(line, particles::Beam, changed_idx::Vector{Int}, changed_el
 end
 
 
-function ringpass!(line::Vector{AbstractElement}, particles::Beam, nturn::Int)
+function ringpass!(line, particles::Beam, nturn::Int)
     # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
     # Check if the particle is lost by checking the lost_flag
     for i in 1:nturn
@@ -80,7 +80,20 @@ function ringpass!(line::Vector{AbstractElement}, particles::Beam, nturn::Int)
     return nothing
 end
 
-function linepass_TPSA!(line::Vector{AbstractElement}, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}) where {T, TPS_Dim, Max_TPS_Degree}
+function ringpass!(line, particles::Beam, nturn::Int, save::Bool)
+    # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
+    # Check if the particle is lost by checking the lost_flag
+    save_beam = []
+    for i in 1:nturn
+        linepass!(line, particles)    
+        if save
+            push!(save_beam, copy(particles.r))
+        end
+    end
+    return save_beam
+end
+
+function linepass_TPSA!(line, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}) where {T, TPS_Dim, Max_TPS_Degree}
     if length(rin) != 6
         error("The length of TPSA must be 6")
     end
@@ -91,7 +104,7 @@ function linepass_TPSA!(line::Vector{AbstractElement}, rin::Vector{CTPS{T, TPS_D
     end
     return nothing
 end
-function ADlinepass_TPSA!(line::Vector{AbstractElement}, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}, changed_idx::Vector{Int}, changed_ele) where {T, TPS_Dim, Max_TPS_Degree}
+function ADlinepass_TPSA!(line, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}, changed_idx::Vector{Int}, changed_ele) where {T, TPS_Dim, Max_TPS_Degree}
     if length(rin) != 6
         error("The length of TPSA must be 6")
     end
@@ -108,7 +121,7 @@ function ADlinepass_TPSA!(line::Vector{AbstractElement}, rin::Vector{CTPS{T, TPS
     return nothing
 end
 
-function ringpass_TPSA!(line::Vector{AbstractElement}, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}, nturn::Int) where {T, TPS_Dim, Max_TPS_Degree}
+function ringpass_TPSA!(line, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}, nturn::Int) where {T, TPS_Dim, Max_TPS_Degree}
     if length(rin) != 6
         error("The length of TPSA must be 6")
     end
