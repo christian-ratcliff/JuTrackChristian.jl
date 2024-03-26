@@ -69,7 +69,6 @@ end
 
 function plot_optics(RING)
     Twi,s = twissring(RING, 0.0, 1)
-    using Plots
     beta, alpha, gamma, mu, dp = optics(Twi)
     p1=plot(s, beta[:, 1], label="betax", xlabel="s", ylabel="beta")
     plot!(s, beta[:, 2], label="betay", xlabel="s", ylabel="beta",)
