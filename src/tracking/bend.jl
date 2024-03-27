@@ -417,8 +417,8 @@ function BendSymplecticPassRad_P!(r::Array{Float64,1}, le::Float64, irho::Float6
     A[1] += sin(KickAngle[2]) / le
 
 
-    # Threads.@threads for c in 1:num_particles
-    for c in 1:num_particles
+    Threads.@threads for c in 1:num_particles
+    # for c in 1:num_particles
         if lost_flags[c] == 1
             continue
         end
@@ -534,8 +534,8 @@ function BendSymplecticPass_P!(r::Array{Float64,1}, le::Float64, irho::Float64, 
     A[1] += sin(KickAngle[2]) / le
 
 
-    # Threads.@threads for c in 1:num_particles
-    for c in 1:num_particles
+    Threads.@threads for c in 1:num_particles
+    # for c in 1:num_particles
         if lost_flags[c] == 1
             continue
         end
