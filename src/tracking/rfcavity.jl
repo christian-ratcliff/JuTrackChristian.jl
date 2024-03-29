@@ -61,7 +61,7 @@ end
 ##########################################################################################
 # multi-threading
 function RFCavityPass_P!(r_in::Array{Float64,1}, le::Float64, nv::Float64, freq::Float64, h::Float64, 
-    lag::Float64, philag::Float64, nturn::Int, T0::Int, num_particles::Int, lost_flags::Array{Int64,1})
+    lag::Float64, philag::Float64, nturn::Int, T0::Float64, num_particles::Int, lost_flags::Array{Int64,1})
     # le - physical length
     # nv - peak voltage (V) normalized to the design enegy (eV)
     # freq - frequency (Hz)
@@ -107,12 +107,15 @@ function pass_P!(ele::RFCA, r_in::Array{Float64,1}, num_particles::Int64, partic
     # ele: RFCA
     # r_in: 6-by-num_particles array
     # num_particles: number of particles
+    lost_flags = particles.lost_flag
+    T0 = particles.T0      # Does not matter since nturns == 0
+    nturn = 0
     if ele.energy == 0
         error("Energy is not defined for RFCA ", ele.name)
     end
-    lost_flags = particles.lost_flag
-    T0=1.0/ele.freq      # Does not matter since nturns == 0
+    # lost_flags = particles.lost_flag
+    # T0 = particles.T0      # Does not matter since nturns == 0
     nv = ele.volt / ele.energy
-    RFCavityPass_P!(r_in, ele.len, nv, ele.freq, ele.h, ele.lag, ele.philag, 0, T0, num_particles, lost_flags)
+    RFCavityPass_P!(r_in, ele.len, nv, ele.freq, ele.h, ele.lag, ele.philag, nturn, T0, num_particles, lost_flags)
     return nothing
 end
