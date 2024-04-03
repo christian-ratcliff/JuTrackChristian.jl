@@ -41,7 +41,7 @@ function linepass!(line, particles::Beam)
     return nothing
 end
 
-function ADlinepass!(line, particles::Beam, changed_idx::Vector{Int}, changed_ele)
+function ADlinepass!(line::Vector{Any}, particles::Beam, changed_idx::Vector{Int}, changed_ele::Vector{Any})
     # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
     # Check if the particle is lost by checking the lost_flag
     np = particles.nmacro
