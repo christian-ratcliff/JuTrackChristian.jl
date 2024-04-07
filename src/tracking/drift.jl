@@ -1,3 +1,5 @@
+# using FLoops
+
 function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
     # multiplies 6-component column vector r by 6x6 matrix R: as in A*r
     temp = zeros(6)
@@ -114,6 +116,8 @@ end
 function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T2::Array{Float64,1}, 
     R1::Array{Float64,2}, R2::Array{Float64, 2}, RApertures::Array{Float64,1}, EApertures::Array{Float64,1}, 
     num_particles::Int, lost_flags::Array{Int64,1})
+
+    # @floop ThreadedEx() for c in 1:num_particles
     Threads.@threads for c in 1:num_particles
     # for c in 1:num_particles
         if lost_flags[c] == 1
