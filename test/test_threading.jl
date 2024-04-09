@@ -7,8 +7,19 @@ using BenchmarkTools
 using .threading_tests
 
 
-singleparticle_drift_tests()
-# multiparticle_drift_tests()
+const bend_angle_in = pi/2
+const hkick_in = 0.02
+const vkick_in = 0.03
+const l_in = 1.23
+const k1_in = 1.0627727
+const k2_in = 1.0627727
+const k3_in = 1.0627727
+const f_in = 60.
+const ks_in = 1.0627727
+
+
+singleparticle_drift_tests(l_in)
+multiparticle_drift_tests(l_in)
 
 
 # DRIFT SINGLE
@@ -25,41 +36,53 @@ singleparticle_drift_tests()
 # Single Thread AutoDiff = Multithread Autodiff?  true
 
 
-# const particles_initial::Array{Float64, 2} = fill(0.1, (10,6))
-
-# const l::Float64 =1.23
 
 # function create_drift(l)
-#     local dr::DRIFT = DRIFT(len=l)
+#     dr = DRIFT(len=l)
 #     return dr
 # end
 
 # function drift_track(l)
-#     local particles::Array{Float64, 2}  = fill(0.1, (10,6))
-#     beam = Beam(r=particles)
+#     particles = zeros(Float64, 10000, 6)
+#     # particles = zeros(SMatrix{10000, 6})
+#     particles[:,1] .= .001
+#     particles[:,2] .= .0001 
+#     beam = Beam(particles)
 #     line = [create_drift(l)]
 #     linepass!(line, beam)
 #     return beam.r
 # end
 
 # function drift_track_mthread(l)
-#     local particles::Array{Float64, 2}  = fill(0.1, (10,6))
-#     beam = Beam(r=particles)
+#     particles = zeros(Float64, 10000, 6)
+#     # particles = zeros(SMatrix{10000, 6})
+#     particles[:,1] .= .001
+#     particles[:,2] .= .0001 
+#     beam = Beam(particles)
 #     line = [create_drift(l)]
 #     plinepass!(line, beam)
 #     return beam.r
 # end
 
-# @btime drift_track(l)
-# @btime drift_track_mthread(l)
-# grad1 = autodiff(Forward, drift_track, DuplicatedNoNeed, Duplicated(l, 1.0))
-# grad2 = autodiff(Forward, drift_track_mthread, DuplicatedNoNeed, Duplicated(l, 1.0))
-# @btime autodiff(Forward, drift_track, DuplicatedNoNeed, Duplicated(l, 1.0))
-# @btime autodiff(Forward, drift_track_mthread, DuplicatedNoNeed, Duplicated(l, 1.0))
+# @btime drift_track(l_in)
+# @btime drift_track_mthread(l_in)
+# grad1 = autodiff(Forward, drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# grad2 = autodiff(Forward, drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# @btime autodiff(Forward, drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# @btime autodiff(Forward, drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
 # println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
 
-# println(particles_intital)
-# particles = @views particles_initial[:,:]
-# particles = @view particles_initial[:,:,:]
-# println(particles)
-# 
+
+#In drift.jl, instead of the if conditions being " ... != zeros(6) or zeros(6,6), I was able to achieve 
+# DRIFT SINGLE
+#   881.857 ns (29 allocations: 3.39 KiB) (~6ns reduction, 2 fewer allocations, .01 KiB increase)
+#   125.526 μs (350 allocations: 40.95 KiB) (~15 μs increase, 2 fewer allocations, ~0.5 KiB increase )
+#   2.978 μs (64 allocations: 6.94 KiB) (~negligibile decrease, 4 fewer allocations, ~0.9 Kib decrease)
+#   130.695 μs (385 allocations: 50.50 KiB) (6 μs increase, 4 fewer allocations, 1 KiB increase)
+# Single Thread AutoDiff = Multithread Autodiff?  true
+# DRIFT MULTI
+#   1.902 ms (60032 allocations: 2.75 MiB) (1 ms decrease, ~40000 fewer allocations, 9.15 MiB decrease )
+#   669.636 μs (60353 allocations: 2.79 MiB) (672 μs decrease, ~40000 fewer allocations. ~9 MiB decrease)
+#   16.804 ms (190062 allocations: 7.56 MiB) (~3 ms decrease, ~80000 fewer allocations, ~18.5 MiB decrease)
+#   1.739 ms (190383 allocations: 7.60 MiB) (~1ms decrease, ~80000 fewer allocations, ~18.5 MiB decrease)
+# Single Thread AutoDiff = Multithread Autodiff?  true

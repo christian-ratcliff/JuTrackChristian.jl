@@ -13,19 +13,11 @@ const multiparticle = mthread_multi_test_funcs
 const singleparticle = mthread_single_test_funcs
 
 
-const bend_angle = pi/2
-const hkick = 0.02
-const vkick = 0.03
-const l = 1.23
-const k1 = 1.0627727
-const k2 = 1.0627727
-const k3 = 1.0627727
-const f = 60.
-const ks = 1.0627727
 
 
 
-function multiparticle_rbend_tests()
+
+function multiparticle_rbend_tests(bend_angle)
     println("RBEND MULTI")
     @btime multiparticle.rbend_track(bend_angle)
     @btime multiparticle.rbend_track_mthread(bend_angle)
@@ -37,7 +29,7 @@ function multiparticle_rbend_tests()
     return nothing
 end
 
-function singleparticle_rbend_tests()
+function singleparticle_rbend_tests(bend_angle)
     println("RBEND SINGLE")
     @btime singleparticle.rbend_track(bend_angle)
     @btime singleparticle.rbend_track_mthread(bend_angle)
@@ -49,7 +41,7 @@ function singleparticle_rbend_tests()
     return nothing
 end
 
-function multiparticle_sbend_tests()
+function multiparticle_sbend_tests(bend_angle)
     println("SBEND MULTI")
     @btime multiparticle.sbend_track(bend_angle)
     @btime multiparticle.sbend_track_mthread(bend_angle)
@@ -61,7 +53,7 @@ function multiparticle_sbend_tests()
     return nothing
 end
 
-function singleparticle_sbend_tests()
+function singleparticle_sbend_tests(bend_angle)
     println("SBEND SINGLE")
     @btime singleparticle.sbend_track(bend_angle)
     @btime singleparticle.sbend_track_mthread(bend_angle)
@@ -73,7 +65,7 @@ function singleparticle_sbend_tests()
     return nothing
 end
 
-function multiparticle_hcorrector_tests()
+function multiparticle_hcorrector_tests(hkick)
     println("HCORRECTOR MULTI")
     @btime multiparticle.hcorrector_track(hkick)
     @btime multiparticle.hcorrector_track_mthread(hkick)
@@ -85,7 +77,7 @@ function multiparticle_hcorrector_tests()
     return nothing
 end
 
-function singleparticle_hcorrector_tests()
+function singleparticle_hcorrector_tests(hkick)
     println("HCORRECTOR SINGLE")
     @btime singleparticle.hcorrector_track(hkick)
     @btime singleparticle.hcorrector_track_mthread(hkick)
@@ -97,7 +89,7 @@ function singleparticle_hcorrector_tests()
     return nothing
 end
 
-function multiparticle_vcorrector_tests()
+function multiparticle_vcorrector_tests(vkick)
     println("VCORRECTOR MULTI")
     @btime multiparticle.vcorrector_track(vkick)
     @btime multiparticle.vcorrector_track_mthread(vkick)
@@ -109,7 +101,7 @@ function multiparticle_vcorrector_tests()
     return nothing
 end
 
-function singleparticle_vcorrector_tests()
+function singleparticle_vcorrector_tests(vkick)
     println("VCORRECTOR SINGLE")
     @btime singleparticle.vcorrector_track(vkick)
     @btime singleparticle.vcorrector_track_mthread(vkick)
@@ -121,31 +113,31 @@ function singleparticle_vcorrector_tests()
     return nothing
 end
 
-function multiparticle_drift_tests()
+function multiparticle_drift_tests(l)
     println("DRIFT MULTI")
-    @btime multiparticle.drift_track(l)
-    @btime multiparticle.drift_track_mthread(l)
+    @btime multiparticle.drift_track($l)
+    @btime multiparticle.drift_track_mthread($l)
     grad1 = autodiff(Forward, multiparticle.drift_track, DuplicatedNoNeed, Duplicated(l, 1.0))
     grad2 = autodiff(Forward, multiparticle.drift_track_mthread, DuplicatedNoNeed, Duplicated(l, 1.0))
-    @btime autodiff(Forward, multiparticle.drift_track, DuplicatedNoNeed, Duplicated(l, 1.0))
-    @btime autodiff(Forward, multiparticle.drift_track_mthread, DuplicatedNoNeed, Duplicated(l, 1.0))
+    @btime autodiff(Forward, multiparticle.drift_track, DuplicatedNoNeed, Duplicated($l, 1.0))
+    @btime autodiff(Forward, multiparticle.drift_track_mthread, DuplicatedNoNeed, Duplicated($l, 1.0))
     println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
     return nothing
 end
 
-function singleparticle_drift_tests()
+function singleparticle_drift_tests(l)
     println("DRIFT SINGLE")
-    @btime singleparticle.drift_track(l)
-    @btime singleparticle.drift_track_mthread(l)
+    @btime singleparticle.drift_track($l)
+    @btime singleparticle.drift_track_mthread($l)
     grad1 = autodiff(Forward, singleparticle.drift_track, DuplicatedNoNeed, Duplicated(l, 1.0))
     grad2 = autodiff(Forward, singleparticle.drift_track_mthread, DuplicatedNoNeed, Duplicated(l, 1.0))
-    @btime autodiff(Forward, singleparticle.drift_track, DuplicatedNoNeed, Duplicated(l, 1.0))
-    @btime autodiff(Forward, singleparticle.drift_track_mthread, DuplicatedNoNeed, Duplicated(l, 1.0))
+    @btime autodiff(Forward, singleparticle.drift_track, DuplicatedNoNeed, Duplicated($l, 1.0))
+    @btime autodiff(Forward, singleparticle.drift_track_mthread, DuplicatedNoNeed, Duplicated($l, 1.0))
     println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
     return nothing
 end
 
-function multiparticle_quad_tests()
+function multiparticle_quad_tests(k1)
     println("QUAD MULTI")
     @btime multiparticle.quad_track(k1)
     @btime multiparticle.quad_track_mthread(k1)
@@ -156,7 +148,7 @@ function multiparticle_quad_tests()
     return nothing
 end
 
-function singleparticle_quad_tests()
+function singleparticle_quad_tests(k1)
     println("QUAD SINGLE")
     @btime singleparticle.quad_track(k1)
     @btime singleparticle.quad_track_mthread(k1)
@@ -167,7 +159,7 @@ function singleparticle_quad_tests()
     return nothing
 end
 
-function multiparticle_sext_tests()
+function multiparticle_sext_tests(k1)
     println("SEXT MULTI")
     @btime multiparticle.sext_track(k2)
     @btime multiparticle.sext_track_mthread(k2)
@@ -179,7 +171,7 @@ function multiparticle_sext_tests()
     return nothing
 end
 
-function singleparticle_sext_tests()
+function singleparticle_sext_tests(k2)
     println("SEXT SINGLE")
     @btime singleparticle.sext_track(k2)
     @btime singleparticle.sext_track_mthread(k2)
@@ -191,7 +183,7 @@ function singleparticle_sext_tests()
     return nothing
 end
 
-function multiparticle_oct_tests()
+function multiparticle_oct_tests(k3)
     println("OCT MULTI")
     @btime multiparticle.oct_track(k3)
     @btime multiparticle.oct_track_mthread(k3)
@@ -203,7 +195,7 @@ function multiparticle_oct_tests()
     return nothing
 end
 
-function singleparticle_oct_tests()
+function singleparticle_oct_tests(k3)
     println("OCT SINGLE")
     @btime singleparticle.oct_track(k3)
     @btime singleparticle.oct_track_mthread(k3)
@@ -215,7 +207,7 @@ function singleparticle_oct_tests()
     return nothing
 end
 
-function multiparticle_RFCA_tests()
+function multiparticle_RFCA_tests(f)
     println("RFCA MULTI")
     @btime multiparticle.RFCA_track(f)
     @btime multiparticle.RFCA_track_mthread(f)
@@ -227,7 +219,7 @@ function multiparticle_RFCA_tests()
     return nothing
 end
 
-function singleparticle_RFCA_tests()
+function singleparticle_RFCA_tests(f)
     println("RFCA SINGLE")
     @btime singleparticle.RFCA_track(f)
     @btime singleparticle.RFCA_track_mthread(f)
@@ -239,7 +231,7 @@ function singleparticle_RFCA_tests()
     return nothing
 end
 
-function multiparticle_sol_tests()
+function multiparticle_sol_tests(ks)
     println("SOL MULTI")
     @btime multiparticle.sol_track(ks)
     @btime multiparticle.sol_track_mthread(ks)
@@ -251,7 +243,7 @@ function multiparticle_sol_tests()
     return nothing
 end
 
-function singleparticle_sol_tests()
+function singleparticle_sol_tests(ks)
     println("SOL SINGLE")
     @btime singleparticle.sol_track(ks)
     @btime singleparticle.sol_track_mthread(ks)
@@ -263,7 +255,7 @@ function singleparticle_sol_tests()
     return nothing
 end
 
-function multiparticle_thinMulti_tests()
+function multiparticle_thinMulti_tests(k1)
     println("THINMULTI MULTI")
     @btime multiparticle.thinMulti_track(k1)
     @btime multiparticle.thinMulti_track_mthread(k1)  
@@ -275,7 +267,7 @@ function multiparticle_thinMulti_tests()
     return nothing
 end
 
-function singleparticle_thinMulti_tests()
+function singleparticle_thinMulti_tests(k1)
     println("THINMULTI SINGLE")
     @btime singleparticle.thinMulti_track(k1)
     @btime singleparticle.thinMulti_track_mthread(k1)  

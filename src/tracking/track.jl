@@ -1,20 +1,29 @@
+# using BenchmarkTools
+# particles = zeros(Float64, 10000, 6)
+# particles[:,1] .= .001
+# particles[:,2] .= .0001 
 function matrix_to_array(matrix::Matrix{Float64})
-    particles = zeros(Float64, size(matrix, 1)*size(matrix, 2))
-    for i in 1:size(matrix, 1)
-        for j in 1:size(matrix, 2)
-            particles[(i-1)*size(matrix, 2)+j] = matrix[i, j]
-        end
-    end
+    particles = vec(matrix)
+    # particles = zeros(Float64, size(matrix, 1)*size(matrix, 2))
+    # for i in 1:size(matrix, 1)
+    #     for j in 1:size(matrix, 2)
+    #         @inbounds particles[(i-1)*size(matrix, 2)+j] = matrix[i, j]
+    #     end
+    # end
+    
     return particles
 end
+# @btime matrix_to_array(particles)
 
 function array_to_matrix(array::Vector{Float64}, n::Int)
-    particles = zeros(Float64, n, 6)
-    for i in 1:n
-        for j in 1:6
-            particles[i, j] = array[(i-1)*6+j]
-        end
-    end
+    # particles = zeros(Float64, n, 6)
+    # for i in 1:n
+    #     for j in 1:6
+    #         particles[i, j] = array[(i-1)*6+j]
+    #     end
+    # end
+
+    particles = reshape(array, n, 6)
     return particles
 end
 
