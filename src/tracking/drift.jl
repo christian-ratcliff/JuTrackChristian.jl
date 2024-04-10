@@ -4,28 +4,16 @@ using BenchmarkTools
 
 function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
     # multiplies 6-component column vector r by 6x6 matrix R: as in A*r
-    temp = zeros(6)
-    # temp .+= A .* r
-    # r = temp
-
+    temp = similar(r)
     for i in 1:6
-        for j in 1:6
-            temp[i] += A[i, j] * r[j]
+        @simd for j in 1:6
+            temp[i] += A[i, j] .* r[j]
         end
     end
-    for i in 1:6
-        r[i] = temp[i]
-    end
-    
-    # @turbo for i in 1:6
-    #     for j in 1:6
-    #         temp[i] += A[i, j] * r[j]
-    #     end
-    # end
-    # for i in 1:6
+    # @simd for i in 1:6
     #     r[i] = temp[i]
     # end
-
+    r .= temp
     return nothing
 end
 
@@ -38,10 +26,9 @@ end
 
 
 function ATaddvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
-    for i in 1:6
+    @simd for i in 1:6
         r[i] += dr[i]
     end
-    # r += dr
     return nothing
 end
 
@@ -79,19 +66,19 @@ function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T
     R1::Array{Float64,2}, R2::Array{Float64, 2}, RApertures::Array{Float64,1}, EApertures::Array{Float64,1}, 
     num_particles::Int, lost_flags::Array{Int64,1})
     # Threads.@threads for c in 1:num_particles
-    zero_6 = zeros(6)
-    zero_66 = zeros(6,6)
+    # zero_6 = zeros(6)
+    # zero_66 = zeros(6,6)
     for c in 1:num_particles
-        if lost_flags[c] == 1
+        if isone(lost_flags[c])
             continue
         end
         r6 = @view r_in[(c-1)*6+1:c*6]
         if !isnan(r6[1])
             # Misalignment at entrance
-            if T1 != zero_6
+            if !iszero(T1)
                 ATaddvv!(r6, T1)
             end
-            if R1 != zero_66
+            if !iszero(R1)
                 ATmultmv!(r6, R1)
             end
             # Check physical apertures at the entrance of the magnet
@@ -110,14 +97,14 @@ function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T
             #     checkiflostEllipticalAp!(r6, EApertures)
             # end
             # Misalignment at exit
-            if R2 != zero_66
+            if !iszero(R2)
                 ATmultmv!(r6, R2)
             end
-            if T2 != zero_6
+            if !iszero(T2)
                 ATaddvv!(r6, T2)
             end
             if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
-                lost_flags[c] = 1
+                lost_flags[c] .= 1
             end
         end
     end
@@ -128,8 +115,8 @@ function pass!(ele::DRIFT, r_in::Array{Float64,1}, num_particles::Int64, particl
     # ele: EDRIFT
     # r_in: 6-by-num_particles array
     # num_particles: number of particles
-    lost_flags = particles.lost_flag
-    DriftPass!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, lost_flags)
+    # lost_flags = particles.lost_flag
+    DriftPass!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, particles.lost_flag)
     return nothing
 end
 
@@ -139,25 +126,26 @@ end
 
 ################################################################################
 # multi-threading
+
+
 function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T2::Array{Float64,1}, 
     R1::Array{Float64,2}, R2::Array{Float64, 2}, RApertures::Array{Float64,1}, EApertures::Array{Float64,1}, 
     num_particles::Int, lost_flags::Array{Int64,1})
 
-    # @floop ThreadedEx() for c in 1:num_particles
-    zero_6 = zeros(6)
-    zero_66 = zeros(6,6)
+    # zero_6 = zeros(6)
+    # zero_66 = zeros(6,6)
     Threads.@threads for c in 1:num_particles
     # for c in 1:num_particles
-        if lost_flags[c] == 1
+        if isone(lost_flags[c])
             continue
         end
         r6 = @view r_in[(c-1)*6+1:c*6]
         if !isnan(r6[1])
             # Misalignment at entrance
-            if T1 != zero_6
+            if !iszero(T1)
                 ATaddvv!(r6, T1)
             end
-            if R1 != zero_66
+            if !iszero(R1)
                 ATmultmv!(r6, R1)
             end
             # Check physical apertures at the entrance of the magnet
@@ -176,14 +164,14 @@ function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1},
             #     checkiflostEllipticalAp!(r6, EApertures)
             # end
             # Misalignment at exit
-            if R2 != zero_66
+            if !iszero(R2)
                 ATmultmv!(r6, R2)
             end
-            if T2 != zero_6
+            if !iszero(T2)
                 ATaddvv!(r6, T2)
             end
             if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
-                lost_flags[c] = 1
+                lost_flags[c] .= 1
             end
         end
     end
@@ -194,8 +182,8 @@ function pass_P!(ele::DRIFT, r_in::Array{Float64,1}, num_particles::Int64, parti
     # ele: EDRIFT
     # r_in: 6-by-num_particles array
     # num_particles: number of particles
-    lost_flags = particles.lost_flag
-    DriftPass_P!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, lost_flags)
+    # lost_flags = particles.lost_flag
+    DriftPass_P!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, particles.lost_flag)
     return nothing
 end
 

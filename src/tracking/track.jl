@@ -3,15 +3,15 @@
 # particles[:,1] .= .001
 # particles[:,2] .= .0001 
 function matrix_to_array(matrix::Matrix{Float64})
-    particles = vec(matrix)
+    # particles = vec(matrix)
     # particles = zeros(Float64, size(matrix, 1)*size(matrix, 2))
     # for i in 1:size(matrix, 1)
     #     for j in 1:size(matrix, 2)
-    #         @inbounds particles[(i-1)*size(matrix, 2)+j] = matrix[i, j]
+    #         particles[(i-1)*size(matrix, 2)+j] = matrix[i, j]
     #     end
     # end
     
-    return particles
+    return vec(matrix)
 end
 # @btime matrix_to_array(particles)
 
@@ -23,8 +23,8 @@ function array_to_matrix(array::Vector{Float64}, n::Int)
     #     end
     # end
 
-    particles = reshape(array, n, 6)
-    return particles
+    # particles = reshape(array, n, 6)
+    return reshape(array, n, 6)
 end
 
 function linepass!(line, particles::Beam)
@@ -49,6 +49,27 @@ function linepass!(line, particles::Beam)
     particles.r = rout
     return nothing
 end
+
+# function linepass!(line, particles::Beam) #this is copy of linepass above, without the np variable created. No effect now, may have effect with multielement
+#     # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
+#     # Check if the particle is lost by checking the lost_flag
+#     # np = particles.nmacro
+#     particles6 = matrix_to_array(particles.r)
+#     if length(particles6) != particles.nmacro*6
+#         error("The number of particles does not match the length of the particle array")
+#     end
+#     for i in eachindex(line)
+#         # ele = line[i]
+#         pass!(line[i],particles6, particles.nmacro, particles)
+#         if isnan(particles6[1]) || isinf(particles6[1])
+#             println("The particle is lost at element ", i, "element name is ", line[i].name)
+#             particles.r = array_to_matrix(particles6,  particles.nmacro)
+#             return nothing
+#         end        
+#     end
+#     particles.r = array_to_matrix(particles6,  particles.nmacro)
+#     return nothing
+# end
 
 function ADlinepass!(line, particles::Beam, changed_idx::Vector{Int}, changed_ele::Vector{Any})
     # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
