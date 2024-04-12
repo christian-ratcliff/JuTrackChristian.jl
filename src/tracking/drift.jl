@@ -4,33 +4,41 @@ using BenchmarkTools
 
 function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
     # multiplies 6-component column vector r by 6x6 matrix R: as in A*r
-    temp = similar(r)
-    for i in 1:6
-        @simd for j in 1:6
-            temp[i] += A[i, j] .* r[j]
+    temp = zeros(6)
+    for j in 1:6
+        for i in 1:6
+            temp[i] += A[i, j] * r[j]
         end
     end
-    # @simd for i in 1:6
-    #     r[i] = temp[i]
-    # end
-    r .= temp
+
+    for i in 1:6
+        r[i] = temp[i]
+    end
+    # r .= temp
     return nothing
 end
 
 
-# Ain = [2. 2. 2. 2. 2. 2. ;2. 2. 2. 2. 2. 2. ;2. 2. 2. 2. 2. 2. ;2. 2. 2. 2. 2. 2. ;2. 2. 2. 2. 2. 2. ;2. 2. 2. 2. 2. 2. ;]
-# rin = [2. ; 2. ; 2. ; 2. ; 2. ; 2.]
+# Ain = [0.002 0.002 0.012302 0.002 0.002 0.002 ;0.012302 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;]
+# rin = [0.044 ; 0.03 ; 0.00245 ; 0.302 ; 0.0042 ; 0.0011232]
+# drin = [.000002 ; .0003 ; .000002 ; .11 ; .00003 ; .1]
+
 
 # @btime ATmultmv!(rin, Ain)
+# ATmultmv!(rin, Ain)
 # print(rin, Ain)
 
 
 function ATaddvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
-    @simd for i in 1:6
+    for i in 1:6
         r[i] += dr[i]
     end
     return nothing
 end
+
+# @btime ATaddvv!(rin, drin)
+# ATaddvv!(rin, drin)
+# print(rin, drin)
 
 function fastdrift!(r::AbstractVector{Float64}, NormL::Float64, le::Float64)
     # in the loop if momentum deviation (delta) does not change
@@ -66,8 +74,6 @@ function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T
     R1::Array{Float64,2}, R2::Array{Float64, 2}, RApertures::Array{Float64,1}, EApertures::Array{Float64,1}, 
     num_particles::Int, lost_flags::Array{Int64,1})
     # Threads.@threads for c in 1:num_particles
-    # zero_6 = zeros(6)
-    # zero_66 = zeros(6,6)
     for c in 1:num_particles
         if isone(lost_flags[c])
             continue
@@ -104,6 +110,7 @@ function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T
                 ATaddvv!(r6, T2)
             end
             if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
+            # if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
                 lost_flags[c] .= 1
             end
         end
@@ -170,7 +177,9 @@ function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1},
             if !iszero(T2)
                 ATaddvv!(r6, T2)
             end
+            
             if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
+            # if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
                 lost_flags[c] .= 1
             end
         end

@@ -41,6 +41,7 @@ function linepass!(line, particles::Beam)
         if isnan(particles6[1]) || isinf(particles6[1])
             println("The particle is lost at element ", i, "element name is ", line[i].name)
             rout = array_to_matrix(particles6, np)
+            # particles.r = array_to_matrix(particles6, np)
             particles.r = rout
             return nothing
         end

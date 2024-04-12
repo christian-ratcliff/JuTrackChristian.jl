@@ -2,9 +2,10 @@ include("../src/JuTrack.jl")
 include("make_threading_tests.jl")
 using .JuTrack
 using Enzyme
+Enzyme.API.runtimeActivity!(true)
 using Test
 using BenchmarkTools
-using .threading_tests
+# using .threading_tests
 
 
 
@@ -23,67 +24,81 @@ const ks_in = 1.0627727
 # singleparticle_drift_tests(l_in)
 # multiparticle_drift_tests(l_in)
 
-
-function delegate(X::AbstractArray)
-    nchunks = Threads.nthreads()
-    splits = [round(Int, s) for s in LinRange(0.0, size(X,1), nchunks+1)]
-    return splits
-end
-
-function create_drift(l)
+function singleparticle_create_drift(l)
     dr = DRIFT(len=l)
     return dr
 end
 
-function drift_track(l)
-    particles = zeros(Float64, 10000, 6)
-    # particles = zeros(SMatrix{10000, 6})
-    particles[:,1] .= .001
-    particles[:,2] .= .0001 
-    splits = delegate(particles)
-    # Threads.@threads for i in 1:Threads.nthreads()
-        # region = splits[i]+1:splits[i+1]
+function singleparticle_drift_track(l)
+    particles = [.001 .0001 .0005 .0002 0.0 0.0]  
     beam = Beam(particles)
-    line = [create_drift(l)]
+    line = [singleparticle_create_drift(l)]
     linepass!(line, beam)
     return beam.r
 end
-
-# particles = zeros(Float64, 128, 6)
-# particles[:,1] .= .001
-# particles[:,2] .= .0001 
-# splits = delegate(particles)
-
-
-# println(typeof(@view(particles, splits[1]+1:splits[2],:)))
-# println(typeof(@view particles[splits[1]+1:splits[2],:]))
-# println(@view particles[splits[1]+1:splits[2],:])
-
-function drift_track_mthread(l)
-    particles = zeros(Float64, 10000, 6)
-    # particles = zeros(SMatrix{10000, 6})
-    particles[:,1] .= .001
-    particles[:,2] .= .0001 
-    # routput = zeros(Float64, 10000, 6)
-    # splits = delegate(particles)
-    # region = 0
-    # Threads.@threads for i in 1:Threads.nthreads()
-    #     region = splits[i]+1:splits[i+1]
-    #     temp = copy(view(particles, region, :))
+function singleparticle_drift_track_mthread(l)
+    particles = [.001 .0001 .0005 .0002 0.0 0.0] 
     beam = Beam(particles)
-    line = [create_drift(l)]
-        plinepass!(line, beam)
-        # rouput[region,:] .= beam.r
-    # end
+    line = [singleparticle_create_drift(l)]
+    plinepass!(line, beam)
     return beam.r
 end
 
-@btime drift_track(l_in)
-@btime drift_track_mthread(l_in)
-grad1 = autodiff(Forward, drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-grad2 = autodiff(Forward, drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-@btime autodiff(Forward, drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-@btime autodiff(Forward, drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+function multiparticle_create_drift(l)
+    dr = DRIFT(len=l)
+    return dr
+end
+
+function multiparticle_drift_track(l)
+    particles = zeros(Float64, 10000, 6)
+    particles[:,1] .= .001
+    particles[:,2] .= .0001 
+    beam = Beam(particles)
+    line = [multiparticle_create_drift(l)]
+    linepass!(line, beam)
+    return beam.r
+end
+function multiparticle_drift_track_mthread(l)
+    particles = zeros(Float64, 10000, 6)
+    particles[:,1] .= .001
+    particles[:,2] .= .0001 
+    beam = Beam(particles)
+    line = [multiparticle_create_drift(l)]
+    plinepass!(line, beam)
+    return beam.r
+end
+particles = zeros(Float64, 10000, 6) 
+particles[:,1] .= .001
+particles[:,2] .= .0001
+
+
+
+println("DRIFT SINGLE")
+# singleparticle_drift_track(l_in)
+# println(singleparticle_drift_track_mthread(l_in))
+# @btime singleparticle_drift_track(l_in)
+# GC.gc()
+# @btime singleparticle_drift_track_mthread(l_in)
+# GC.gc()
+# grad1 = autodiff(Forward, singleparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# grad2 = autodiff(Forward, singleparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# GC.gc()
+@btime autodiff(Forward, singleparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+@btime autodiff(Forward, singleparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
+
+println("DRIFT MULTI")
+# multiparticle_drift_track(l_in)
+# multiparticle_drift_track_mthread(l_in)
+@btime multiparticle_drift_track(l_in)
+GC.gc()
+@btime multiparticle_drift_track_mthread(l_in)
+GC.gc()
+grad1 = autodiff(Forward, multiparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+grad2 = autodiff(Forward, multiparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+GC.gc()
+@btime autodiff(Forward, multiparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+@btime autodiff(Forward, multiparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
 println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
 
 # @btime abcde = zeros(Float64, 10000, 6)
@@ -120,12 +135,19 @@ println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
 # Now the allocations are directly related to the increse in the number of particles
 
 #Able to further reduce memory by changing the array_to_matrix and matrix_to_array to avoid loops, and changing my previous method to use !iszero. Noticeable improvement in mthread time 
+# DRIFT SINGLE
+#   794.720 ns (29 allocations: 2.88 KiB) 
+#   118.483 μs (350 allocations: 39.44 KiB)
+#   2.923 μs (62 allocations: 5.86 KiB)
+#   119.695 μs (383 allocations: 47.42 KiB)
+# Single Thread AutoDiff = Multithread Autodiff?  true
 # DRIFT MULTI
-#   1.728 ms (60031 allocations: 1.83 MiB)
-#   359.184 μs (60351 allocations: 1.87 MiB)
-#   16.357 ms (190057 allocations: 5.73 MiB)
-#   1.516 ms (190377 allocations: 5.77 MiB)
+#   1.604 ms (60030 allocations: 1.83 MiB) 650.67x more memory with 10000 particles vs 1
+#   355.256 μs (60351 allocations: 1.87 MiB) 48.55x more memory with 10000 particles vs 1
+#   16.820 ms (190056 allocations: 5.73 MiB) 1001x more memory with 10000 particles vs 1
+#   1.523 ms (190377 allocations: 5.77 MiB) 124.6x more memory with 10000 particles vs 1
 # Single Thread AutoDiff = Multithread Autodiff?  true
 
-#I have also made changes where broadcasting would make sense
-#As of right not, mthread has 320 more allocations than the single thread, which means 5 more allocations per thread
+
+
+#By changing the variables defined in the global scope in JuTrack.jl to constants, significant reduction in discrepancy between 
