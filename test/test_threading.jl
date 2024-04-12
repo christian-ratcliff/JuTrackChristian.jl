@@ -2,10 +2,10 @@ include("../src/JuTrack.jl")
 include("make_threading_tests.jl")
 using .JuTrack
 using Enzyme
-Enzyme.API.runtimeActivity!(true)
+# Enzyme.API.runtimeActivity!(true)
 using Test
 using BenchmarkTools
-# using .threading_tests
+using .threading_tests
 
 
 
@@ -22,7 +22,7 @@ const ks_in = 1.0627727
 
 
 # singleparticle_drift_tests(l_in)
-# multiparticle_drift_tests(l_in)
+multiparticle_drift_tests(l_in)
 
 function singleparticle_create_drift(l)
     dr = DRIFT(len=l)
@@ -73,36 +73,35 @@ particles[:,2] .= .0001
 
 
 
-println("DRIFT SINGLE")
-# singleparticle_drift_track(l_in)
-# println(singleparticle_drift_track_mthread(l_in))
+# println("DRIFT SINGLE")
 # @btime singleparticle_drift_track(l_in)
 # GC.gc()
 # @btime singleparticle_drift_track_mthread(l_in)
+# println("   ENZYME SEGFAULT'S HERE")
+# println("   ENZYME SEGFAULT'S HERE")
 # GC.gc()
 # grad1 = autodiff(Forward, singleparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
 # grad2 = autodiff(Forward, singleparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
 # GC.gc()
-@btime autodiff(Forward, singleparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-@btime autodiff(Forward, singleparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# @btime autodiff(Forward, singleparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# @btime autodiff(Forward, singleparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
 # println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
 
-println("DRIFT MULTI")
-# multiparticle_drift_track(l_in)
-# multiparticle_drift_track_mthread(l_in)
-@btime multiparticle_drift_track(l_in)
-GC.gc()
-@btime multiparticle_drift_track_mthread(l_in)
-GC.gc()
-grad1 = autodiff(Forward, multiparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-grad2 = autodiff(Forward, multiparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-GC.gc()
-@btime autodiff(Forward, multiparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-@btime autodiff(Forward, multiparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
-println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
+# println("DRIFT MULTI")
+# @btime multiparticle_drift_track(l_in)
+# GC.gc()
+# @btime multiparticle_drift_track_mthread(l_in)
+# GC.gc()
+# grad1 = autodiff(Forward, multiparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# grad2 = autodiff(Forward, multiparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# GC.gc()
+# @btime autodiff(Forward, multiparticle_drift_track, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# @btime autodiff(Forward, multiparticle_drift_track_mthread, DuplicatedNoNeed, Duplicated(l_in, 1.0))
+# println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
 
-# @btime abcde = zeros(Float64, 10000, 6)
-#Making the intial preallocation should only take up 2 allocations
+# @btime abcde = zeros(Float64, 10000, 6) #Making the intial preallocation should only take up 2 allocations, 468.80 KiB
+# @btime abcdef = zeros(Float64, 1, 6) # 24.544 ns (1 allocation: 112 bytes)
+
 
 #################   ORIGINAL 
 # DRIFT SINGLE
@@ -118,36 +117,23 @@ println("Single Thread AutoDiff = Multithread Autodiff?  ", grad1 == grad2)
 #   2.677 ms (270379 allocations: 25.91 MiB)
 # Single Thread AutoDiff = Multithread Autodiff?  true
 
+#Changes made:
+#   In drift.jl simplified array_to_matrix() and matrix_to_array, this had minor effect
+#   In drift.jl, drift6!() and fastdrift!() replaced ==1 with isone() this had minor effect
+#   In drift.jl, DriftPass(_P)!() replaces != zeros(6) and zeros(6,6) with !iszero(), this had major effect
+#   In drift.jl, changed the multiple or statements in DriftPass(_P)!() to have absolute values, this had minor effect
+#   In JuTrack.jl, changed global variables to be constant global variables, this had major effect
+#   In track_mthread.jl, remove unneedded variables rout and ele, minor effect on time
 
-#In drift.jl, instead of the if conditions being " ... != zeros(6) or zeros(6,6), and instead assigning a variable to zeros() I was able to achieve 
+#################   CURRENT 
 # DRIFT SINGLE
-#   881.857 ns (29 allocations: 3.39 KiB) (~6ns reduction, 2 fewer allocations, .01 KiB increase)
-#   125.526 μs (350 allocations: 40.95 KiB) (~15 μs increase, 2 fewer allocations, ~0.5 KiB increase )
-#   2.978 μs (64 allocations: 6.94 KiB) (~negligibile decrease, 4 fewer allocations, ~0.9 Kib decrease)
-#   130.695 μs (385 allocations: 50.50 KiB) (6 μs increase, 4 fewer allocations, 1 KiB increase)
-# Single Thread AutoDiff = Multithread Autodiff?  true
+#   625.582 ns (23 allocations: 2.78 KiB)
+#   121.318 μs (344 allocations: 39.34 KiB)
+#    ENZYME SEGFAULT'S HERE
+#    ENZYME SEGFAULT'S HERE
 # DRIFT MULTI
-#   1.902 ms (60032 allocations: 2.75 MiB) (1 ms decrease, ~40000 fewer allocations, 9.15 MiB decrease )
-#   669.636 μs (60353 allocations: 2.79 MiB) (672 μs decrease, ~40000 fewer allocations. ~9 MiB decrease)
-#   16.804 ms (190062 allocations: 7.56 MiB) (~3 ms decrease, ~80000 fewer allocations, ~18.5 MiB decrease)
-#   1.739 ms (190383 allocations: 7.60 MiB) (~1ms decrease, ~80000 fewer allocations, ~18.5 MiB decrease)
+#   572.615 μs (30 allocations: 940.12 KiB)
+#   176.391 μs (351 allocations: 976.69 KiB)
+#   545.513 μs (56 allocations: 1.76 MiB)
+#   368.831 μs (377 allocations: 1.80 MiB)
 # Single Thread AutoDiff = Multithread Autodiff?  true
-# Now the allocations are directly related to the increse in the number of particles
-
-#Able to further reduce memory by changing the array_to_matrix and matrix_to_array to avoid loops, and changing my previous method to use !iszero. Noticeable improvement in mthread time 
-# DRIFT SINGLE
-#   794.720 ns (29 allocations: 2.88 KiB) 
-#   118.483 μs (350 allocations: 39.44 KiB)
-#   2.923 μs (62 allocations: 5.86 KiB)
-#   119.695 μs (383 allocations: 47.42 KiB)
-# Single Thread AutoDiff = Multithread Autodiff?  true
-# DRIFT MULTI
-#   1.604 ms (60030 allocations: 1.83 MiB) 650.67x more memory with 10000 particles vs 1
-#   355.256 μs (60351 allocations: 1.87 MiB) 48.55x more memory with 10000 particles vs 1
-#   16.820 ms (190056 allocations: 5.73 MiB) 1001x more memory with 10000 particles vs 1
-#   1.523 ms (190377 allocations: 5.77 MiB) 124.6x more memory with 10000 particles vs 1
-# Single Thread AutoDiff = Multithread Autodiff?  true
-
-
-
-#By changing the variables defined in the global scope in JuTrack.jl to constants, significant reduction in discrepancy between 

@@ -11,23 +11,12 @@ function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
         end
     end
 
-    for i in 1:6
-        r[i] = temp[i]
-    end
-    # r .= temp
+    # for i in 1:6
+    #     r[i] = temp[i]
+    # end
+    r .= temp
     return nothing
 end
-
-
-# Ain = [0.002 0.002 0.012302 0.002 0.002 0.002 ;0.012302 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;0.002 0.002 0.002 0.002 0.002 0.002 ;]
-# rin = [0.044 ; 0.03 ; 0.00245 ; 0.302 ; 0.0042 ; 0.0011232]
-# drin = [.000002 ; .0003 ; .000002 ; .11 ; .00003 ; .1]
-
-
-# @btime ATmultmv!(rin, Ain)
-# ATmultmv!(rin, Ain)
-# print(rin, Ain)
-
 
 function ATaddvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
     for i in 1:6
@@ -36,15 +25,11 @@ function ATaddvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
     return nothing
 end
 
-# @btime ATaddvv!(rin, drin)
-# ATaddvv!(rin, drin)
-# print(rin, drin)
-
 function fastdrift!(r::AbstractVector{Float64}, NormL::Float64, le::Float64)
     # in the loop if momentum deviation (delta) does not change
     # such as in 4-th order symplectic integrator w/o radiation
 
-    if use_exact_Hamiltonian == 1
+    if isone(use_exact_Hamiltonian)
         r[1] += NormL * r[2]
         r[3] += NormL * r[4]
         r[5] += NormL * (1.0 + r[6]) - le
@@ -59,7 +44,7 @@ end
 function drift6!(r::AbstractVector{Float64}, le::Float64)
     # AT uses small angle approximation pz = 1 + delta. 
     # Here we use pz = sqrt((1 + delta)^2 - px^2 - py^2) for precise calculation
-    if use_exact_Hamiltonian == 1
+    if isone(use_exact_Hamiltonian)
         NormL = le / sqrt(((1.0 + r[6])^2 - r[2]^2 - r[4]^2))
         r[5] += NormL * (1.0 + r[6]) - le
     else
@@ -109,8 +94,8 @@ function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T
             if !iszero(T2)
                 ATaddvv!(r6, T2)
             end
-            if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
-            # if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
+            # if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
+            if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
                 lost_flags[c] .= 1
             end
         end
@@ -139,8 +124,6 @@ function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1},
     R1::Array{Float64,2}, R2::Array{Float64, 2}, RApertures::Array{Float64,1}, EApertures::Array{Float64,1}, 
     num_particles::Int, lost_flags::Array{Int64,1})
 
-    # zero_6 = zeros(6)
-    # zero_66 = zeros(6,6)
     Threads.@threads for c in 1:num_particles
     # for c in 1:num_particles
         if isone(lost_flags[c])
@@ -178,8 +161,8 @@ function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1},
                 ATaddvv!(r6, T2)
             end
             
-            if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
-            # if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
+            # if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
+            if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
                 lost_flags[c] .= 1
             end
         end
