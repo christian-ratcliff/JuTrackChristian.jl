@@ -1,9 +1,9 @@
 /Manifest.toml
-/ChristianTestRing.ipynb
-/mypractice.ipynb
-/test/make_threading_tests.jl
-/test/mthread_multi_test_funcs.jl
-/test/mthread_single_test_funcs.jl
-/test/multithreading_comparison_multi_particle.ipynb
-/test/multithreading_comparison_single_particle.ipynb
-/test/test_threading.jl
+ChristianTestRing.ipynb
+mypractice.ipynb
+test/make_threading_tests.jl
+test/mthread_multi_test_funcs.jl
+test/mthread_single_test_funcs.jl
+test/multithreading_comparison_multi_particle.ipynb
+test/multithreading_comparison_single_particle.ipynb
+test/test_threading.jl
