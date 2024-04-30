@@ -1,8 +1,4 @@
-# using FLoops
-using BenchmarkTools
-# using LoopVectorization
-
-function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
+function multmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
     # multiplies 6-component column vector r by 6x6 matrix R: as in A*r
     temp = zeros(6)
     for j in 1:6
@@ -10,7 +6,6 @@ function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
             temp[i] += A[i, j] * r[j]
         end
     end
-
     # for i in 1:6
     #     r[i] = temp[i]
     # end
@@ -18,7 +13,8 @@ function ATmultmv!(r::AbstractVector{Float64}, A::Matrix{Float64})
     return nothing
 end
 
-function ATaddvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
+function addvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
+    # adds 6-component column vector dr to 6-component column vector r: as in r = r + dr
     for i in 1:6
         r[i] += dr[i]
     end
@@ -26,6 +22,7 @@ function ATaddvv!(r::AbstractVector{Float64}, dr::Array{Float64,1})
 end
 
 function fastdrift!(r::AbstractVector{Float64}, NormL::Float64, le::Float64)
+    # similar to AT fastdrift. Provide an option to use exact Hamiltonian or linearized approximation
     # in the loop if momentum deviation (delta) does not change
     # such as in 4-th order symplectic integrator w/o radiation
 
@@ -42,8 +39,9 @@ function fastdrift!(r::AbstractVector{Float64}, NormL::Float64, le::Float64)
 end
 
 function drift6!(r::AbstractVector{Float64}, le::Float64)
+    # similar to AT drift6. Provide an option to use exact Hamiltonian or linearized approximation
     # AT uses small angle approximation pz = 1 + delta. 
-    # Here we use pz = sqrt((1 + delta)^2 - px^2 - py^2) for precise calculation
+    # pz = sqrt((1 + delta)^2 - px^2 - py^2) is also an option.
     if isone(use_exact_Hamiltonian)
         NormL = le / sqrt(((1.0 + r[6])^2 - r[2]^2 - r[4]^2))
         r[5] += NormL * (1.0 + r[6]) - le
@@ -55,10 +53,11 @@ function drift6!(r::AbstractVector{Float64}, le::Float64)
     r[3] += NormL * r[4]
     return nothing
 end 
+
 function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T2::Array{Float64,1}, 
     R1::Array{Float64,2}, R2::Array{Float64, 2}, RApertures::Array{Float64,1}, EApertures::Array{Float64,1}, 
     num_particles::Int, lost_flags::Array{Int64,1})
-    # Threads.@threads for c in 1:num_particles
+    # Modified based on AT function. Ref[Terebilo, Andrei. "Accelerator modeling with MATLAB accelerator toolbox." PACS2001 (2001)].
     for c in 1:num_particles
         if isone(lost_flags[c])
             continue
@@ -67,36 +66,23 @@ function DriftPass!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1}, T
         if !isnan(r6[1])
             # Misalignment at entrance
             if !iszero(T1)
-                ATaddvv!(r6, T1)
+                addvv!(r6, T1)
             end
             if !iszero(R1)
-                ATmultmv!(r6, R1)
+                multmv!(r6, R1)
             end
-            # Check physical apertures at the entrance of the magnet
-            # if RApertures !== nothing
-            #     checkiflostRectangularAp!(r6, RApertures)
-            # end
-            # if EApertures !== nothing
-            #     checkiflostEllipticalAp!(r6, EApertures)
-            # end
+
             drift6!(r6, le)
-            # Check physical apertures at the exit of the magnet
-            # if RApertures !== nothing
-            #     checkiflostRectangularAp!(r6, RApertures)
-            # end
-            # if EApertures !== nothing
-            #     checkiflostEllipticalAp!(r6, EApertures)
-            # end
+
             # Misalignment at exit
             if !iszero(R2)
-                ATmultmv!(r6, R2)
+                multmv!(r6, R2)
             end
             if !iszero(T2)
-                ATaddvv!(r6, T2)
+                addvv!(r6, T2)
             end
-            # if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
-            if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
-                lost_flags[c] .= 1
+            if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1])
+                lost_flags[c] = 1
             end
         end
     end
@@ -125,7 +111,6 @@ function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1},
     num_particles::Int, lost_flags::Array{Int64,1})
 
     Threads.@threads for c in 1:num_particles
-    # for c in 1:num_particles
         if isone(lost_flags[c])
             continue
         end
@@ -133,37 +118,23 @@ function DriftPass_P!(r_in::Array{Float64,1}, le::Float64, T1::Array{Float64,1},
         if !isnan(r6[1])
             # Misalignment at entrance
             if !iszero(T1)
-                ATaddvv!(r6, T1)
+                addvv!(r6, T1)
             end
             if !iszero(R1)
-                ATmultmv!(r6, R1)
+                multmv!(r6, R1)
             end
-            # Check physical apertures at the entrance of the magnet
-            # if RApertures !== nothing
-            #     checkiflostRectangularAp!(r6, RApertures)
-            # end
-            # if EApertures !== nothing
-            #     checkiflostEllipticalAp!(r6, EApertures)
-            # end
+   
             drift6!(r6, le)
-            # Check physical apertures at the exit of the magnet
-            # if RApertures !== nothing
-            #     checkiflostRectangularAp!(r6, RApertures)
-            # end
-            # if EApertures !== nothing
-            #     checkiflostEllipticalAp!(r6, EApertures)
-            # end
+
             # Misalignment at exit
             if !iszero(R2)
-                ATmultmv!(r6, R2)
+                multmv!(r6, R2)
             end
             if !iszero(T2)
-                ATaddvv!(r6, T2)
+                addvv!(r6, T2)
             end
-            
-            # if r6[1] > CoordLimit || r6[2] > AngleLimit || r6[1] < -CoordLimit || r6[2] < -AngleLimit
-            if abs(r6[1]) > abs(CoordLimit) || abs(r6[2]) > abs(AngleLimit)
-                lost_flags[c] .= 1
+            if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1])
+                lost_flags[c] = 1
             end
         end
     end

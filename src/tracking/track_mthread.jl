@@ -1,13 +1,6 @@
 function matrix_to_array(matrix::Matrix{Float64})
-    # particles = zeros(Float64, size(matrix, 1)*size(matrix, 2))
-    # for i in 1:size(matrix, 1)
-    #     for j in 1:size(matrix, 2)
-    #         particles[(i-1)*size(matrix, 2)+j] = matrix[i, j]
-    #     end
-    # end
-    # particles = vec(matrix)
-
-    return vec(matrix)
+    particles = vec(matrix)
+    return particles
 end
 
 function array_to_matrix(array::Vector{Float64}, n::Int)
