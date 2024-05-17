@@ -3,7 +3,23 @@
 # particles[:,1] .= .001
 # particles[:,2] .= .0001 
 function matrix_to_array(matrix::Matrix{Float64})
-    particles = vec(matrix)
+    particles = zeros(Float64, size(matrix, 1)*6)
+    for i in 1:size(matrix, 1)
+        for j in 1:6
+            particles[(i-1)*6+j] = matrix[i, j]
+        end
+    end
+
+    return particles
+end
+
+function array_to_matrix(array::Vector{Float64}, n::Int)
+    particles = zeros(Float64, n, 6)
+    for i in 1:n
+        for j in 1:6
+            particles[i, j] = array[(i-1)*6+j]
+        end
+    end
     return particles
 end
 # @btime matrix_to_array(particles)
@@ -44,28 +60,7 @@ function linepass!(line, particles::Beam)
     return nothing
 end
 
-# function linepass!(line, particles::Beam) #this is copy of linepass above, without the np variable created. No effect now, may have effect with multielement
-#     # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
-#     # Check if the particle is lost by checking the lost_flag
-#     # np = particles.nmacro
-#     particles6 = matrix_to_array(particles.r)
-#     if length(particles6) != particles.nmacro*6
-#         error("The number of particles does not match the length of the particle array")
-#     end
-#     for i in eachindex(line)
-#         # ele = line[i]
-#         pass!(line[i],particles6, particles.nmacro, particles)
-#         if isnan(particles6[1]) || isinf(particles6[1])
-#             println("The particle is lost at element ", i, "element name is ", line[i].name)
-#             particles.r = array_to_matrix(particles6,  particles.nmacro)
-#             return nothing
-#         end        
-#     end
-#     particles.r = array_to_matrix(particles6,  particles.nmacro)
-#     return nothing
-# end
-
-function ADlinepass!(line, particles::Beam, changed_idx::Vector{Int}, changed_ele::Vector{Any})
+function ADlinepass!(line, particles::Beam, changed_idx::Vector, changed_ele::Vector)
     # Note!!! A lost particle's coordinate will not be marked as NaN or Inf like other softwares 
     # Check if the particle is lost by checking the lost_flag
     np = particles.nmacro
@@ -96,13 +91,13 @@ function ADlinepass!(line, particles::Beam, changed_idx::Vector{Int}, changed_el
     return nothing
 end
 
-function AD_ringpass!(line, particles::Beam, nturn::Int, changed_idx::Vector{Int}, changed_ele)
+function AD_ringpass!(line, particles::Beam, nturn::Int, changed_idx::Vector, changed_ele::Vector)
     for i in 1:nturn
         ADlinepass!(line, particles, changed_idx, changed_ele)    
     end
     return nothing
 end
-function AD_ringpass!(line, particles::Beam, nturn::Int, changed_idx::Vector{Int}, changed_ele, save::Bool)
+function AD_ringpass!(line, particles::Beam, nturn::Int, changed_idx::Vector, changed_ele::Vector, save::Bool)
     save_beam = []
     for i in 1:nturn
         ADlinepass!(line, particles, changed_idx, changed_ele)    
@@ -146,7 +141,7 @@ function linepass_TPSA!(line, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}) whe
     end
     return nothing
 end
-function ADlinepass_TPSA!(line, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}, changed_idx::Vector{Int}, changed_ele) where {T, TPS_Dim, Max_TPS_Degree}
+function ADlinepass_TPSA!(line, rin::Vector{CTPS{T, TPS_Dim, Max_TPS_Degree}}, changed_idx::Vector, changed_ele::Vector) where {T, TPS_Dim, Max_TPS_Degree}
     if length(rin) != 6
         error("The length of TPSA must be 6")
     end

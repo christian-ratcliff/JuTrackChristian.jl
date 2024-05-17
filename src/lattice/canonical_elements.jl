@@ -126,8 +126,8 @@ end
     fint1::Float64 = 0.0
     fint2::Float64 = 0.0
     gap::Float64 = 0.0
-    FringeBendEntrance::Int64 = 0
-    FringeBendExit::Int64 = 0
+    FringeBendEntrance::Int64 = 1
+    FringeBendExit::Int64 = 1
     FringeQuadEntrance::Int64 = 0
     FringeQuadExit::Int64 = 0
     FringeIntM0::Array{Float64,1} = zeros(5)
@@ -173,7 +173,7 @@ struct RBEND <: AbstractElement
 end
 function RBEND(;name::String = "RBend", len::Float64 = 0.0, angle::Float64 = 0.0, PolynomA::Array{Float64,1} = zeros(4), 
                 PolynomB::Array{Float64,1} = zeros(4), MaxOrder::Int64 = 0, NumIntSteps::Int64 = 10, rad::Int64=0, fint1::Float64 = 0.0, 
-                fint2::Float64 = 0.0, gap::Float64 = 0.0, FringeBendEntrance::Int64 = 0, FringeBendExit::Int64 = 0, 
+                fint2::Float64 = 0.0, gap::Float64 = 0.0, FringeBendEntrance::Int64 = 1, FringeBendExit::Int64 = 1, 
                 FringeQuadEntrance::Int64 = 0, FringeQuadExit::Int64 = 0, FringeIntM0::Array{Float64,1} = zeros(5), 
                 FringeIntP0::Array{Float64,1} = zeros(5), T1::Array{Float64,1} = zeros(6), T2::Array{Float64,1} = zeros(6), 
                 R1::Array{Float64,2} = zeros(6,6), R2::Array{Float64,2} = zeros(6,6), RApertures::Array{Float64,1} = zeros(6), 
@@ -224,6 +224,22 @@ end
 function VKICKER(;name="VKicker", len=0.0, ykick=0.0)
     return CORRECTOR(name, len, 0.0, ykick, zeros(6), zeros(6), zeros(6,6), zeros(6,6), "VKICKER")
 end
+
+# non-canonical elements
+@kwdef struct QUAD <: AbstractElement
+    name::String  = "Quad"                                      # element name  
+    len::Float64 = 0.0
+    k1::Float64 = 0.0                                           # use k1 if PolynomB is not given
+    rad::Int64 = 0
+    T1::Array{Float64,1} = zeros(6)
+    T2::Array{Float64,1} = zeros(6)
+    R1::Array{Float64,2} = zeros(6,6)
+    R2::Array{Float64,2} = zeros(6,6)         
+    RApertures::Array{Float64,1} = zeros(6)
+    EApertures::Array{Float64,1} = zeros(6)
+    eletype::String = "QUAD"
+end
+
 ###########################################
 # the following elements may not be symplectic and may not work with Enzyme
 struct CRABCAVITY <: AbstractElement
@@ -328,6 +344,8 @@ struct StrongGaussianBeam <: AbstractStrongBeamBeam  # Strong Beam with transver
     nzslice::Int # Number of slices in z direction
     zslice_center::Vector{Float64} # z center of each slice
     zslice_npar::Vector{Float64} # amplitude of each slice
+    xoffsets::Vector{Float64} # x offset of each slice
+    yoffsets::Vector{Float64} # y offset of each slice
     function StrongGaussianBeam(charge::Float64, mass::Float64, atomnum::Float64, 
             np::Int, energy::Float64, op::AbstractOptics4D, bs::Vector{Float64}, nz::Int)
         momentum=sqrt(energy*energy-mass*mass)  
@@ -335,6 +353,6 @@ struct StrongGaussianBeam <: AbstractStrongBeamBeam  # Strong Beam with transver
         beta=momentum/energy
         classrad0=charge*charge/(atomnum*mass)/4/pi/55.26349406*1e-6
         radconst=4*pi/3*classrad0/mass/mass/mass
-        new(charge,mass,atomnum,classrad0,radconst,np,energy,momentum,gamma,beta, op, bs, nz, zeros(nz), zeros(nz))
+        new(charge,mass,atomnum,classrad0,radconst,np,energy,momentum,gamma,beta, op, bs, nz, zeros(nz), zeros(nz), zeros(nz), zeros(nz))
     end  
 end
