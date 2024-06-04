@@ -5,7 +5,7 @@ const m_e = 0.51099895e6
 const m_p = 938.27208816e6
 const m_goldion = 931.49410242e6 # charge 79, atomic number 197
 const CGAMMA =	8.846056192e-05
-use_exact_Hamiltonian = 0
+const use_exact_Hamiltonian = 0
 
 include("TPSA/TPSA.jl")
 include("lattice/beam.jl")

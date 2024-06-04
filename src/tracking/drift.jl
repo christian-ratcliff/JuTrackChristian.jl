@@ -93,8 +93,8 @@ function pass!(ele::DRIFT, r_in::Array{Float64,1}, num_particles::Int64, particl
     # ele: EDRIFT
     # r_in: 6-by-num_particles array
     # num_particles: number of particles
-    lost_flags = particles.lost_flag
-    DriftPass!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, lost_flags)
+    # lost_flags = particles.lost_flag
+    DriftPass!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, particles.lost_flag)
     return nothing
 end
 
@@ -142,8 +142,8 @@ function pass_P!(ele::DRIFT, r_in::Array{Float64,1}, num_particles::Int64, parti
     # ele: EDRIFT
     # r_in: 6-by-num_particles array
     # num_particles: number of particles
-    lost_flags = particles.lost_flag
-    DriftPass_P!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, lost_flags)
+    # lost_flags = particles.lost_flag
+    DriftPass_P!(r_in, ele.len, ele.T1, ele.T2, ele.R1, ele.R2, ele.RApertures, ele.EApertures, num_particles, particles.lost_flag)
     return nothing
 end
 

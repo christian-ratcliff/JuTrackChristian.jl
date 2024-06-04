@@ -1,22 +1,22 @@
 function matrix_to_array(matrix::Matrix{Float64})
-    particles = zeros(Float64, size(matrix, 1)*6)
-    for i in 1:size(matrix, 1)
-        for j in 1:6
-            particles[(i-1)*6+j] = matrix[i, j]
-        end
-    end
+    # particles = zeros(Float64, size(matrix, 1)*6)
+    # for i in 1:size(matrix, 1)
+    #     for j in 1:6
+    #         particles[(i-1)*6+j] = matrix[i, j]
+    #     end
+    # end
 
-    return particles
+    return vec(matrix)
 end
 
 function array_to_matrix(array::Vector{Float64}, n::Int)
-    particles = zeros(Float64, n, 6)
-    for i in 1:n
-        for j in 1:6
-            particles[i, j] = array[(i-1)*6+j]
-        end
-    end
-    return particles
+    # particles = zeros(Float64, n, 6)
+    # for i in 1:n
+    #     for j in 1:6
+    #         particles[i, j] = array[(i-1)*6+j]
+    #     end
+    # end
+    return reshape(array, n, 6)
 end
 
 function linepass!(line, particles::Beam)
