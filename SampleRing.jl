@@ -46,12 +46,12 @@ function get_tune(k_vals,RING)
         refpts = [i for i in 1:length(RING)]
         twi = ADtwissring(RING, 0.0, 1, refpts, changed_idx, changed_ele)
         phase = twi[end].dmux - twi[1].dmux
-        tune = phase/(2*π) - 1
+        tune = phase/(2*π)
         return tune
 end
 
 function optimize_tune(k, iter, stepsize, RING)
-        target = 0.6
+        target = 0.53
         k_vals = zeros(8, iter)
         goal_vals = []
         grad_vals = zeros(8, iter)
@@ -68,17 +68,17 @@ function optimize_tune(k, iter, stepsize, RING)
                 grad19 = autodiff(Forward, get_tune, Duplicated, Duplicated(k, [0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0]), Const(RING))
                 grad23 = autodiff(Forward, get_tune, Duplicated, Duplicated(k, [0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0]), Const(RING))
         
-                k[1] -= step * grad1[2]
-                k[2] -= step * grad5[2]
-                k[3] -= step * grad7[2]
-                k[4] -= step * grad11[2]
-                k[5] -= step * grad13[2]
-                k[6] -= step * grad17[2]
-                k[7] -= step * grad19[2]
-                k[8] -= step * grad23[2]
+                k[1] .-= step .* grad1[2]
+                k[2] .-= step .* grad5[2]
+                k[3] .-= step .* grad7[2]
+                k[4] .-= step .* grad11[2]
+                k[5] .-= step .* grad13[2]
+                k[6] .-= step .* grad17[2]
+                k[7] .-= step .* grad19[2]
+                k[8] .-= step .* grad23[2]
 
                 new_tune = get_tune(k, RING)
-                println("init: ", g0, " now: ", new_phase, "at step ", i)
+                println("init: ", g0, " now: ", new_tune, "at step ", i)
                 k_vals[:, i] = k
                 push!(goal_vals, new_tune)
                 grad_vals[:, i] = [grad1[2], grad5[2], grad7[2], grad11[2], grad13[2], grad17[2], grad19[2], grad23[2]]
@@ -140,39 +140,49 @@ function Q_perturb(RING)
 end
 
 
-kstart = 1.
+kstart = 1.2
 # ring = ring_gen(kstart, -2*kstart)
 
 niter = 100
-step = 0.0001
+step = 0.01
 
 kini_vals, traceini_vals, grad_vals = optimize_k(kstart, niter, step)
-println("k1: ", kini_vals[end], " trace: ", traceini_vals[end])
 ring = ring_gen(kini_vals[end], -kini_vals[end])
+m66 = ADfindm66(ring, 0.0, 3, [], [])
+print(m66)
+println("k1: ", kini_vals[end], " trace: ", traceini_vals[end])
+# ring = ring_gen(kini_vals[end], -kini_vals[end])
 
-# m66 = ADfindm66(ring, 0.0, 3, [], [])
-# trace = m66[1, 1] + m66[2, 2]
-# println(trace)
-# println("Focus k1: ", x0[1], " Defoucs k1: ", x0[2], " Trace: ", trace_vals[end])
-# idxs = [1, 5, 7, 11, 13, 17, 19, 23]
-ring_perturb = Q_perturb(ring)
-kinit = [ring_perturb[1].k1; ring_perturb[5].k1; ring_perturb[7].k1; ring_perturb[11].k1; ring_perturb[13].k1; ring_perturb[17].k1; ring_perturb[19].k1; ring_perturb[23].k1]
+# # m66 = ADfindm66(ring, 0.0, 3, [], [])
+# # trace = m66[1, 1] + m66[2, 2]
+# # println(trace)
+# # println("Focus k1: ", x0[1], " Defoucs k1: ", x0[2], " Trace: ", trace_vals[end])
+# # idxs = [1, 5, 7, 11, 13, 17, 19, 23]
+# ring_perturb = Q_perturb(ring)
+# kinit = [ring_perturb[1].k1; ring_perturb[5].k1; ring_perturb[7].k1; ring_perturb[11].k1; ring_perturb[13].k1; ring_perturb[17].k1; ring_perturb[19].k1; ring_perturb[23].k1]
 
-# println(kinit)
-k_vals, goal_vals, grad_vals = optimize_tune(kinit, niter, step, ring)
+# # println(kinit)
+# k_vals, goal_vals, grad_vals = optimize_tune(kinit, niter, step, ring)
 
-plot_steps = 5
-p1 = plot(1:plot_steps, k_vals[1, 1:plot_steps], title = L"Evolution\ of\ k", xlabel = L"Iterations", ylabel = L"Strength (m^{-1})", label=L"k_1", line=:dash, marker=:circle)
-for i in 2:7
-        label_str = "k_{$i}"  
-        full_label = latexstring(label_str)
-        plot!(1:plot_steps, k_vals[i, 1:plot_steps], label=full_label, line=:dash, marker=:circle)
-end
-p2 = plot(1:plot_steps, goal_vals[1:plot_steps], title = L"Evolution\ of\ \Delta \phi", xlabel = L"Iterations", ylabel = L"phase\ advance(rad)", legend = false, line=:dash, marker=:circle)
-p3 = plot(1:plot_steps, grad_vals[1, 1:plot_steps], title = L"Evolution\ of\ gradient", xlabel = L"Iterations", ylabel = L"\partial \frac{\Delta \phi}{\partial k}", label=L"k_1", line=:dash, marker=:circle)
-for i in 2:7
-        label_str = "k_{$i}"  
-        full_label = latexstring(label_str)
-        plot!(1:plot_steps, grad_vals[i, 1:plot_steps], label=full_label, line=:dash, marker=:circle)
-end
-plot(p1, p2, p3, layout = (3, 1), size=(800, 650))
+# plot_steps = 5
+# p1 = plot(1:plot_steps, k_vals[1, 1:plot_steps], title = L"Evolution\ of\ k", xlabel = L"Iterations", ylabel = L"Strength (m^{-1})", label=L"k_1", line=:dash, marker=:circle)
+# for i in 2:7
+#         label_str = "k_{$i}"  
+#         full_label = latexstring(label_str)
+#         plot!(1:plot_steps, k_vals[i, 1:plot_steps], label=full_label, line=:dash, marker=:circle)
+# end
+# p2 = plot(1:plot_steps, goal_vals[1:plot_steps], title = L"Evolution\ of\ \Delta \phi", xlabel = L"Iterations", ylabel = L"phase\ advance(rad)", legend = false, line=:dash, marker=:circle)
+# p3 = plot(1:plot_steps, grad_vals[1, 1:plot_steps], title = L"Evolution\ of\ gradient", xlabel = L"Iterations", ylabel = L"\partial \frac{\Delta \phi}{\partial k}", label=L"k_1", line=:dash, marker=:circle)
+# for i in 2:7
+#         label_str = "k_{$i}"  
+#         full_label = latexstring(label_str)
+#         plot!(1:plot_steps, grad_vals[i, 1:plot_steps], label=full_label, line=:dash, marker=:circle)
+# end
+# plot(p1, p2, p3, layout = (3, 1), size=(800, 650))
+
+
+
+
+
+
+
