@@ -59,9 +59,10 @@ end
 
 function CTPS(M::CTPS{T, TPS_Dim, Max_TPS_Degree}) where {T, TPS_Dim, Max_TPS_Degree}
     map = zeros(T, length(M.map))
-    for i in eachindex(map)
-        map[i] = M.map[i]
-    end
+    map .= M.map
+    # for i in eachindex(map)
+    #     map[i] = M.map[i]
+    # end
     return CTPS{T, TPS_Dim, Max_TPS_Degree}(Max_TPS_Degree, length(map), map, M.polymap)
 end
 
@@ -75,6 +76,7 @@ function findindex(ctps::CTPS{T, TPS_Dim, Max_TPS_Degree}, indexmap::Vector{Int}
     # indexmap is a vector of length TPS_Dim + 1, e.g. [0, 1, 1] for x1^1 * x2^1
     dim = TPS_Dim
     if length(indexmap) == dim
+    # if isequal(length(indexmap), dim)
         total = sum(indexmap)
         newindexmap = [total; indexmap]
         return findindex(ctps, newindexmap)
@@ -86,6 +88,7 @@ function findindex(ctps::CTPS{T, TPS_Dim, Max_TPS_Degree}, indexmap::Vector{Int}
     for i in 1:length(indexmap)
         sum[i] = indexmap[i]
     end
+    # sum .= indexmap
     # sum = copy(indexmap)
     # sum_buffer = Zygote.Buffer(sum) # Buffer for Zygote
     # for i in 1:length(sum_buffer)

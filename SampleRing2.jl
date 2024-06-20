@@ -4,8 +4,9 @@ using Plots
 using Random
 using Enzyme
 using Optim
+using BenchmarkTools
 
-function ring_gen(k)
+function ring_gen(k::Vector{Float64})
         D1 = DRIFT(name="D1", len=0.7)
         QF1 = KQUAD(name="QF1", len=0.6, k1=k[1])
         QF2 = KQUAD(name="QF2", len=0.6, k1=k[2])
@@ -31,7 +32,7 @@ function ring_gen(k)
 end
 
 
-function ηx(k, RING)
+function ηx(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -44,7 +45,7 @@ function ηx_loss(θ, k, b, RING)
         return (ηx(k, RING) - ηx(kp(θ, k, b), RING))^2
 end
 
-function ηy(k, RING)
+function ηy(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -57,7 +58,7 @@ function ηy_loss(θ, k, b, RING)
         return (ηy(k, RING) - ηy(kp(θ, k, b), RING))^2
 end
 
-function tracex(k, RING)
+function tracex(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -70,7 +71,7 @@ function tracex_loss(θ, k, b, RING)
         return (tracex(k, RING) - tracex(kp(θ, k, b), RING))^2
 end
 
-function tracey(k, RING)
+function tracey(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -83,7 +84,7 @@ function tracey_loss(θ, k, b, RING)
         return (tracey(k, RING) - tracey(kp(θ, k, b), RING))^2
 end
 
-function βxmax(k, RING)
+function βxmax(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -101,7 +102,7 @@ function βxmax_loss(θ, k, b, RING)
         return (βxmax(k, RING) - βxmax(kp(θ, k, b), RING))^2
 end
 
-function βymax(k, RING)
+function βymax(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -119,7 +120,7 @@ function βymax_loss(θ, k, b, RING)
         return (βymax(k, RING) - βymax(kp(θ, k, b), RING))^2
 end
 
-function βxvar(k, RING)
+function βxvar(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -137,7 +138,7 @@ function βxvar_loss(θ, k, b, RING)
         return (βxvar(k, RING) - βxvar(kp(θ, k, b), RING))^2
 end
 
-function βyvar(k, RING)
+function βyvar(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -155,7 +156,7 @@ function βyvar_loss(θ, k, b, RING)
         return (βyvar(k, RING) - βyvar(kp(θ, k, b), RING))^2
 end
 
-function tunex(k, RING)
+function tunex(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -169,7 +170,7 @@ function tunex_loss(θ, k, b, RING)
         return (0.58 - tunex(kp(θ, k, b), RING))^2
 end
 
-function tuney(k, RING)
+function tuney(k::Vector{Float64}, RING::Vector{AbstractElement})
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k[1]), KQUAD(len=RING[3].len, k1=k[9]), KQUAD(len=RING[5].len, k1=k[2]), KQUAD(len=RING[7].len, k1=k[3]),
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
@@ -190,19 +191,18 @@ function total_loss(θ, k, b, RING)
         return w[1]*ηx_loss(θ, k, b, RING) + w[2]*ηy_loss(θ, k, b, RING) + w[3]*tracex_loss(θ, k, b, RING) + w[4]*tracey_loss(θ, k, b, RING) - w[5]*βxmax_loss(θ, k, b, RING) - w[6]*βymax_loss(θ, k, b, RING) + w[7]*βxvar_loss(θ, k, b, RING) + w[8]*βyvar_loss(θ, k, b, RING) + w[9]*tunex_loss(θ, k, b, RING) + w[10]*tuney_loss(θ, k, b, RING)
 end
 
-function trace_updated_focus_quad_strengthx(k,RING)
+function trace_updated_focus_quad_strengthx(k::Float64, RING::Vector{AbstractElement})
         # changed_idx = [1, 5, 8, 12, 15, 19, 22, 26]
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k), KQUAD(len=RING[3].len, k1=-k), KQUAD(len=RING[5].len, k1=k), KQUAD(len=RING[7].len, k1=k),
                 KQUAD(len=RING[9].len, k1=-k), KQUAD(len=RING[11].len, k1=k), KQUAD(len=RING[13].len, k1=k),KQUAD(len=RING[15].len, k1=-k),
                 KQUAD(len=RING[17].len, k1=k), KQUAD(len=RING[19].len, k1=k), KQUAD(len=RING[21].len, k1=-k),KQUAD(len=RING[23].len, k1=k)] 
-        # changed_ele = fill(KQUAD(len=0.6, k1=k),length(changed_idx))
         m66 = ADfindm66(RING, 0.0, 3, changed_idx, changed_ele)
         trace = m66[1, 1] + m66[2, 2]
         return trace
 end
 
-function trace_updated_focus_quad_strengthy(k, RING)
+function trace_updated_focus_quad_strengthy(k::Float64, RING::Vector{AbstractElement})
         # changed_idx = [1, 5, 8, 12, 15, 19, 22, 26]
         changed_idx = [1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]
         changed_ele = [KQUAD(len=RING[1].len, k1=k), KQUAD(len=RING[3].len, k1=-k), KQUAD(len=RING[5].len, k1=k), KQUAD(len=RING[7].len, k1=k),
@@ -214,7 +214,7 @@ function trace_updated_focus_quad_strengthy(k, RING)
         return trace
 end
 
-function ring_gen_ini(k)
+function ring_gen_ini(k::Float64)
         D1 = DRIFT(name="D1", len=0.7)
         QF1 = KQUAD(name="QF1", len=0.6, k1=k)
         QD1 = KQUAD(name="QD1", len=0.6, k1=-k)
@@ -229,7 +229,7 @@ function ring_gen_ini(k)
         return ringout
 end
 
-function relu_rev(x)
+function relu_rev(x::Float64)
         if x > 0. 
                 return 0.
         else
@@ -237,7 +237,7 @@ function relu_rev(x)
         end
 end
 
-function relu(x, y)
+function relu(x::Float64, y::Float64)
         if x > y
                 return x
         else
@@ -245,17 +245,24 @@ function relu(x, y)
         end
 end
 
+function relu_exact(x::Float64, y::Float64)
 
-function ini_opt_loss(θ, k, b, RING)
+end
+
+function ini_opt_loss(θ::Float64, k::Float64, b::Float64, RING::Vector{AbstractElement})
         # return (2.0-abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)))^2 + (2.0-abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING)))^2 + 10*relu_rev(kp(θ, k, b))^2
         return  relu(abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)),2.0) + relu(abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING)),2.0) + exp(50*relu_rev(kp(θ, k, b))) - 1.0
 
-        # return (trace_updated_focus_quad_strengthx(k, RING)-abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)))^2 + (trace_updated_focus_quad_strengthx(k, RING)-abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING)))^2 + relu(abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)),2.0) + relu(abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING)),2.0) + exp(50*relu_rev(kp(θ, k, b))) - 1.0
+        # return (0.0-abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)))^2 + (0.0-abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING)))^2 + relu(abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)),2.0) + relu(abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING)),2.0) + exp(relu_rev(kp(θ, k, b))) - 1.0
         # return exp(2.0*(-2.0+abs(trace_updated_focus_quad_strengthx(kp(θ, k, b), RING)))) + exp(2.0*(-2.0+abs(trace_updated_focus_quad_strengthy(kp(θ, k, b), RING))))
         # return ((trace_updated_focus_quad_strengthx(k, RING)-trace_updated_focus_quad_strengthx(kp(θ, k, b), RING))^2 + (trace_updated_focus_quad_strengthy(k, RING)-trace_updated_focus_quad_strengthy(kp(θ, k, b), RING))^2)
 end
 
-function opt_ini(θ, k, b, RING, iter, step)
+function order_magntiude(x::Float64)
+        return floor(log10(abs(x)))
+end
+
+function opt_ini(k::Float64, RING::Vector{AbstractElement}, iter::Int64, step::Float64)
         # new_k_vals = zeros(iter)
         # tracex_vals = zeros(iter)
         # tracey_vals = zeros(iter)
@@ -273,42 +280,46 @@ function opt_ini(θ, k, b, RING, iter, step)
         # new_k_vals[1] = kp(θ,k,b)
         # tracex_vals[1] = tracex
         # tracey_vals[1] = tracey 
-        mom_factor = step*1.618*10
+        mom_factor = step/1.618
+        other_fac = step - mom_factor
         mom1 = 0.
         mom2 = 0.
-
-        if abs(tracex) > 2. || abs(tracey) > 2.
-                while abs(tracex) > 2. || abs(tracey) > 2.
-                # while ini_opt_loss(θ, k, b, RING) > 1e-2
-                        grad1 = autodiff(Forward, ini_opt_loss, Duplicated, Duplicated(θ,1.0), Const(k), Const(b), Const(RING))
-                        grad2 = autodiff(Forward, ini_opt_loss, Duplicated, Const(θ), Const(k), Duplicated(b, 1.0), Const(RING))
-                        mom1 = mom_factor*mom1 + grad1[1]
-                        mom2 = mom_factor*mom2 + grad2[1]
-                        θ -= step * mom1
-                        b -= step * mom2
-                        tracex = trace_updated_focus_quad_strengthx(kp(θ,k,b), RING)
-                        tracey = trace_updated_focus_quad_strengthy(kp(θ,k,b), RING) 
-                        if isnan(tracex) || isnan(tracey) 
-                                println("Nan detected in traces")
-                                # θ = rand()
-                                # b = rand()
-                                # tracex = 300.
-                                # tracey = 300.
-                                break
-                        end
-                        # new_k_vals[counter] = kp(θ,k,b)
-                        # tracex_vals[counter] = tracex
-                        # tracey_vals[counter] = tracey
-                        
-                        println("Tuning at step: ", counter, " at k: ", kp(θ,k,b), " with trace x: ", tracex, " and trace y: ", tracey)
-                        if counter > iter 
-                                break
-                        end
-                        println(ini_opt_loss(θ, k, b, RING))
-                        counter +=1
-                end  
-        end   
-        println("Tuning finished at step: ", counter, " at k: ", kp(θ,k,b), " with trace x: ", tracex, " and trace y: ", tracey)  
+        θ = 1.0+0.01*rand()
+        b = 0.01*rand()
+        while abs(tracex) > 2. || abs(tracey) > 2.
+        # while ini_opt_loss(θ, k, b, RING) > 1e-2
+                grad1 = autodiff(Forward, ini_opt_loss, Duplicated, Duplicated(θ,1.0), Const(k), Const(b), Const(RING))
+                grad2 = autodiff(Forward, ini_opt_loss, Duplicated, Const(θ), Const(k), Duplicated(b, 1.0), Const(RING))
+                mom1 = mom_factor*mom1 + other_fac*grad1[1]
+                mom2 = mom_factor*mom2 + other_fac*grad2[1]
+                θ -= step * mom1
+                b -= step * mom2
+                # θ -= step*grad1[1]
+                # b -= b - step*grad2[1]
+                tracex = trace_updated_focus_quad_strengthx(kp(θ,k,b), RING)
+                tracey = trace_updated_focus_quad_strengthy(kp(θ,k,b), RING) 
+                if isnan(tracex) || isnan(tracey) 
+                        println("Nan detected in traces")
+                        # θ = rand()
+                        # b = rand()
+                        # tracex = 300.
+                        # tracey = 300.
+                        break
+                end
+                # new_k_vals[counter] = kp(θ,k,b)
+                # tracex_vals[counter] = tracex
+                # tracey_vals[counter] = tracey
+                
+                println("Tuning at step: ", counter, " at k: ", kp(θ,k,b), " with trace x: ", tracex, " and trace y: ", tracey)
+                if counter > iter 
+                        break
+                end
+                # loss_val = ini_opt_loss(θ, k, b, RING)
+                # println("Loss: ",loss_val)
+                
+                counter +=1
+        end  
+        println("Tuning finished at step: ", counter-1, " at k: ", kp(θ,k,b), " with trace x: ", tracex, " and trace y: ", tracey)  
         return kp(θ,k,b), tracex, tracey
 end
 
@@ -317,11 +328,32 @@ end
 
 kstart = 2.2
 niter = 300
-step = 1e-5
+step = 1e-3
 θini = 1.0+0.1*rand()
 bini = 0.1*rand()
+
+order = 3
+dp = 0.0
+x = CTPS(0.0, 1, 6, order)
+px = CTPS(0.0, 2, 6, order)
+y = CTPS(0.0, 3, 6, order)
+py = CTPS(0.0, 4, 6, order)
+z = CTPS(dp, 5, 6, order)
+delta = CTPS(0.0, 6, 6, order)
+rin = [x, px, y, py, z, delta]
+
+RING = ring_gen_ini(kstart)
+k = kp(θini,kstart,bini)
+@btime ADfindm66(RING, 0.0, 3, [], [])
+@btime trace_updated_focus_quad_strengthx(k, RING)
+
+
+
 # kini_vals_ini, tracexini_vals, traceyini_vals = opt_ini(θini, kstart, bini, ring_gen_ini(kp(θini, kstart, bini)), niter, step)
-kini, tracexini, traceyini = opt_ini(θini, kstart, bini, ring_gen_ini(kstart), niter, step)
+# kini, tracexini, traceyini = opt_ini(θini, kstart, bini, ring_gen_ini(kstart), niter, step)
+# @btime opt_ini(kstart,ring_gen_ini(kstart), niter, step)
+# opt_ini(kstart,ring_gen_ini(kstart), niter, step)
+
 # println("Initial tuning finished at k1: ", kini, " with trace x: ", tracexini, " and trace y: ", traceyini[end])
 # kstart = kini_vals_ini[end]
 # k=zeros(12)
