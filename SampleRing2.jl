@@ -22,12 +22,10 @@ function ring_gen(k::Vector{Float64})
         QD4 = KQUAD(name="QD4", len=0.6, k1=k[12])
         BendingAngle = pi/2.
         BD1 = SBEND(name="BD1", len=2.1, angle=BendingAngle )
-
         ringout = [QF1, D1, QD1, D1, QF2, BD1,
                 QF3, D1, QD2, D1, QF4, BD1,
                 QF5, D1, QD3, D1, QF6, BD1,
                 QF7, D1, QD4, D1, QF8, BD1]
-
         return ringout
 end
 
@@ -38,7 +36,7 @@ function ηx(k::Vector{Float64}, RING::Vector{AbstractElement})
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
                 KQUAD(len=RING[17].len, k1=k[6]), KQUAD(len=RING[19].len, k1=k[7]), KQUAD(len=RING[21].len, k1=k[12]),KQUAD(len=RING[23].len, k1=k[8])] 
         m66 = ADfindm66(RING, 0.0, 3, changed_idx, changed_ele)
-        return m66[6, 1]
+        return m66[1, 6]
 end
 
 function ηx_loss(θ, k, b, RING)
@@ -51,7 +49,7 @@ function ηy(k::Vector{Float64}, RING::Vector{AbstractElement})
                 KQUAD(len=RING[9].len, k1=k[10]), KQUAD(len=RING[11].len, k1=k[4]), KQUAD(len=RING[13].len, k1=k[5]),KQUAD(len=RING[15].len, k1=k[11]),
                 KQUAD(len=RING[17].len, k1=k[6]), KQUAD(len=RING[19].len, k1=k[7]), KQUAD(len=RING[21].len, k1=k[12]),KQUAD(len=RING[23].len, k1=k[8])] 
         m66 = ADfindm66(RING, 0.0, 3, changed_idx, changed_ele)
-        return m66[6, 3]
+        return m66[3, 6]
 end
 
 function ηy_loss(θ, k, b, RING)
