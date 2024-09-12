@@ -1,6 +1,5 @@
-include("../src/JuTrack.jl")
-using .JuTrack
-using Enzyme
+# include("../src/JuTrack.jl")
+using JuTrack
 using LinearAlgebra
 using Plots
 

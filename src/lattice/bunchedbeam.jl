@@ -2,65 +2,65 @@
 # using Distributions
 
 # linear algebra functions
-function det1(A::Matrix{Float64})
-    # Ensure the matrix is square
-    if size(A, 1) != size(A, 2)
-        error("Matrix must be square")
-    end
+# function det1(A::Matrix{Float64})
+#     # Ensure the matrix is square
+#     if size(A, 1) != size(A, 2)
+#         error("Matrix must be square")
+#     end
 
-    # LU decomposition
-    N = size(A, 1)
-    U = zeros(Float64, N, N)
-	for i = 1:N
-		U[i, :] = A[i, :]
-	end
-    L = zeros(Float64, N, N)
-	for i = 1:N
-		L[i, i] = 1.0
-	end
-    swaps = 0
+#     # LU decomposition
+#     N = size(A, 1)
+#     U = zeros(Float64, N, N)
+# 	for i = 1:N
+# 		U[i, :] = A[i, :]
+# 	end
+#     L = zeros(Float64, N, N)
+# 	for i = 1:N
+# 		L[i, i] = 1.0
+# 	end
+#     swaps = 0
 
-    L = zeros(Float64, N, N)
-    for i = 1:N
-        L[i, i] = 1.0
-    end
+#     L = zeros(Float64, N, N)
+#     for i = 1:N
+#         L[i, i] = 1.0
+#     end
 
-    for i = 1:N
-        # Find the pivot
-        pivot = i
-        for j = i+1:N
-            if abs(U[j, i]) > abs(U[pivot, i])
-                pivot = j
-            end
-        end
+#     for i = 1:N
+#         # Find the pivot
+#         pivot = i
+#         for j = i+1:N
+#             if abs(U[j, i]) > abs(U[pivot, i])
+#                 pivot = j
+#             end
+#         end
 
-        # Swap rows if necessary
-        if pivot != i
-            U[i, :], U[pivot, :] = U[pivot, :], U[i, :]
-            L[i, 1:i-1], L[pivot, 1:i-1] = L[pivot, 1:i-1], L[i, 1:i-1]
-            swaps += 1
-        end
+#         # Swap rows if necessary
+#         if pivot != i
+#             U[i, :], U[pivot, :] = U[pivot, :], U[i, :]
+#             L[i, 1:i-1], L[pivot, 1:i-1] = L[pivot, 1:i-1], L[i, 1:i-1]
+#             swaps += 1
+#         end
 
-        # Check for singular matrix
-        if U[i, i] == 0
-            return 0.0
-        end
+#         # Check for singular matrix
+#         if U[i, i] == 0
+#             return 0.0
+#         end
 
-        # Eliminate below
-        for j = i+1:N
-            L[j, i] = U[j, i] / U[i, i]
-            U[j, i:end] -= L[j, i] * U[i, i:end]
-        end
-    end
+#         # Eliminate below
+#         for j = i+1:N
+#             L[j, i] = U[j, i] / U[i, i]
+#             U[j, i:end] -= L[j, i] * U[i, i:end]
+#         end
+#     end
 
-    # Compute the determinant
-    det_val = (-1.0)^swaps
-    for i = 1:N
-        det_val *= U[i, i]
-    end
+#     # Compute the determinant
+#     det_val = (-1.0)^swaps
+#     for i = 1:N
+#         det_val *= U[i, i]
+#     end
 
-    return det_val
-end
+#     return det_val
+# end
 
 function diagm1(v)
     n = length(v)
@@ -72,22 +72,24 @@ function diagm1(v)
 end
 
 function get_centroid!(beam::Beam)
-    beam.centroid[1] = sum(beam.r[:, 1]) / beam.nmacro
-    beam.centroid[3] = sum(beam.r[:, 3]) / beam.nmacro
-    beam.centroid[2] = sum(beam.r[:, 2]) / beam.nmacro
-    beam.centroid[4] = sum(beam.r[:, 4]) / beam.nmacro
+    idx_sur = findall(x -> x == 0, beam.lost_flag)
+    beam.centroid[1] = sum(beam.r[idx_sur, 1]) / beam.nmacro
+    beam.centroid[3] = sum(beam.r[idx_sur, 3]) / beam.nmacro
+    beam.centroid[2] = sum(beam.r[idx_sur, 2]) / beam.nmacro
+    beam.centroid[4] = sum(beam.r[idx_sur, 4]) / beam.nmacro
     
-    beam.centroid[5] = sum(beam.r[:, 5]) / beam.nmacro
-    beam.centroid[6] = sum(beam.r[:, 6]) / beam.nmacro
+    beam.centroid[5] = sum(beam.r[idx_sur, 5]) / beam.nmacro
+    beam.centroid[6] = sum(beam.r[idx_sur, 6]) / beam.nmacro
     return nothing
 end
 
 
 function get_2nd_moment!(beam::Beam)
+    idx_sur = findall(x -> x == 0, beam.lost_flag)
     sums = zeros(6,6)
     
-    for c in 1:beam.nmacro
-        r6 = @view beam.r[c, :]
+    for c in 1:length(idx_sur)
+        r6 = @view beam.r[idx_sur[c], :]
         for i in 1:6
             for j in 1:6
                 sums[i, j] += r6[i] * r6[j]
@@ -97,7 +99,7 @@ function get_2nd_moment!(beam::Beam)
 
     for i in 1:6
         for j in 1:6
-            beam.moment2nd[i, j] = sums[i, j] / beam.nmacro
+            beam.moment2nd[i, j] = sums[i, j] / length(idx_sur)
         end
     end
     return nothing
@@ -124,11 +126,18 @@ end
 
 function initilize_6DGaussiandist!(beam::Beam, optics::AbstractOptics4D, lmap::AbstractLongitudinalMap, cutoff::Float64=5.0)
     # 6D Gaussian distribution
-
-    # dist=Truncated(Normal(0.0,1.0),-cutoff,cutoff)
-
-    # beam.r = rand(dist, beam.nmacro, 6)
-    beam.r = randn(beam.nmacro, 6)
+    temp = randn(beam.nmacro, 6)
+    beam.r .= temp
+    # cutoff the distribution
+    # for c in 1:beam.nmacro
+    #     for i in 1:6
+    #         if beam.r[c, i] > cutoff
+    #             beam.r[c, i] = cutoff
+    #         elseif beam.r[c, i] < -cutoff
+    #             beam.r[c, i] = -cutoff
+    #         end
+    #     end
+    # end
 
     get_centroid!(beam)
 
@@ -212,4 +221,28 @@ function histogram1DinZ!(beam::Beam)
     # histogram in z
     histogram1DinZ!(beam, beam.znbin, beam.inzindex, beam.zhist, beam.zhist_edges)
     return nothing
+end
+
+function twiss_2d(x, xp)
+    # Calculate second moments
+    x2_mean = mean(x.^2)
+    xp2_mean = mean(xp.^2)
+    xxp_mean = mean(x .* xp)
+    
+    # Calculate emittance
+    emittance = sqrt(x2_mean * xp2_mean - xxp_mean.^2)
+    
+    # Calculate beta function
+    beta = x2_mean / emittance
+    alpha = -xxp_mean / emittance
+    
+    return beta, alpha, emittance
+end
+
+function twiss_beam(beam::Beam)
+    # Calculate twiss parameters
+    beta_x, alpha_x, emit_x = twiss_2d(beam.r[:, 1], beam.r[:, 2])
+    beta_y, alpha_y, emit_y = twiss_2d(beam.r[:, 3], beam.r[:, 4])
+    beta_z, alpha_z, emit_z = twiss_2d(beam.r[:, 5], beam.r[:, 6])
+    return beta_x, alpha_x, emit_x, beta_y, alpha_y, emit_y, beta_z, alpha_z, emit_z
 end

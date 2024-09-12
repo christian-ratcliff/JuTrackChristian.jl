@@ -1,4 +1,3 @@
-include("drift.jl")
 function pass!(ele::SOLENOID, r_in::Array{Float64,1}, num_particles::Int64, particles::Beam)
     lost_flags = particles.lost_flag
     T1 = ele.T1
@@ -47,7 +46,7 @@ function pass!(ele::SOLENOID, r_in::Array{Float64,1}, num_particles::Int64, part
                     addvv!(r6, T2)
                 end
 
-                if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1]) || isinf(r6[1])
+                if check_lost(r6)
                     lost_flags[c] = 1
                 end
             end
@@ -59,7 +58,7 @@ function pass!(ele::SOLENOID, r_in::Array{Float64,1}, num_particles::Int64, part
             end
             r6 = @view r_in[(c-1)*6+1:c*6]
             drift6!(r6, ele.len)
-            if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1]) || isinf(r6[1])
+            if check_lost(r6)
                 lost_flags[c] = 1
             end
         end
@@ -118,7 +117,7 @@ function pass_P!(ele::SOLENOID, r_in::Array{Float64,1}, num_particles::Int64, pa
                     addvv!(r6, T2)
                 end
 
-                if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1]) || isinf(r6[1])
+                if check_lost(r6)
                     lost_flags[c] = 1
                 end
             end
@@ -142,7 +141,7 @@ function pass_P!(ele::SOLENOID, r_in::Array{Float64,1}, num_particles::Int64, pa
             if !iszero(T2)
                 addvv!(r6, T2)
             end
-            if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1]) || isinf(r6[1])
+            if check_lost(r6)
                 lost_flags[c] = 1
             end
         end

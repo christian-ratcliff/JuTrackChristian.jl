@@ -1,4 +1,3 @@
-include("drift.jl")
 function strthinkick1!(r::AbstractVector{Float64}, A, B, L, max_order)
     # Modified based on AT function. Ref[Terebilo, Andrei. "Accelerator modeling with MATLAB accelerator toolbox." PACS2001 (2001)].
 
@@ -65,7 +64,7 @@ function ThinMPolePass!(r::Array{Float64,1}, le::Float64, A::Array{Float64,1}, B
             if !iszero(T2)
                 addvv!(r6, T2)
             end
-            if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1]) || isinf(r6[1])
+            if check_lost(r6)
                 lost_flags[c] = 1
             end
         end
@@ -126,7 +125,7 @@ function ThinMPolePass_P!(r::Array{Float64,1}, le::Float64, A::Array{Float64,1},
             if !iszero(T2)
                 addvv!(r6, T2)
             end
-            if abs(r6[1]) > CoordLimit || abs(r6[2]) > AngleLimit || isnan(r6[1]) || isinf(r6[1])
+            if check_lost(r6)
                 lost_flags[c] = 1
             end
         end
