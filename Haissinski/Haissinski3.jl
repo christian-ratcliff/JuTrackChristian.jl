@@ -1,9 +1,9 @@
-using Plots, Measures, Base.Threads
+using Plots, Measures
 
 colors_set = [RGB(0.1, 0.2, 0.5), RGB(0.9, 0.2, 0.3), RGB(0.2, 0.8, 0.2), RGB(0.8, 0.8, 0.1), RGB(0.5, 0.2, 0.8), RGB(0.2, 0.9, 0.8), RGB(0.9, 0.5, 0.2), RGB(0.1, 0.6, 0.3), RGB(0.5, 0.1, 0.6), RGB(0.8, 0.3, 0.9), RGB(0.3, 0.7, 0.4), RGB(0.7, 0.4, 0.1), RGB(0.4, 0.5, 0.9), RGB(0.6, 0.2, 0.3), RGB(0.1, 0.4, 0.7), RGB(0.9, 0.6, 0.3), RGB(0.1, 0.1, 0.8), RGB(0.6, 0.8, 0.1), RGB(0.3, 0.1, 0.5), RGB(0.4, 0.4, 0.1), RGB(0.5, 0.9, 0.5), RGB(0.7, 0.5, 0.8), RGB(0.1, 0.5, 0.9), RGB(0.3, 0.6, 0.7), RGB(0.8, 0.5, 0.1), RGB(0.2, 0.5, 0.4), RGB(0.9, 0.9, 0.1), RGB(0.6, 0.1, 0.4), RGB(0.4, 0.2, 0.3), RGB(0.8, 0.7, 0.3), RGB(0.1, 0.9, 0.1), RGB(0.7, 0.1, 0.9), RGB(0.5, 0.7, 0.1), RGB(0.9, 0.1, 0.9), RGB(0.2, 0.4, 0.6)]
 
 
-function longitudinal_evolve(n_turns::Int64, ϕ0_ini::Float64,ΔE_ini::Float64 , E0_ini::Float64, sin_ϕs::Float64, α_c::Float64, mass::Float64, e_volt::Float64, harmonic::Int64,radius::Float64,U0::Float64,pipe_rad::Float64, update_η::Bool = false, update_E0::Bool = false, SR_damping::Bool = false, use_wakefield::Bool = false )
+function longitudinal_evolve(n_turns::Int64, ϕ0_ini::Float64,ΔE_ini::Float64 , E0_ini::Float64, sin_ϕs::Float64, α_c::Float64, mass::Float64, e_volt::Float64, harmonic::Int64,radius::Float64,U0::Float64,pipe_rad::Float64, freq_rf::Float64, update_η::Bool = false, update_E0::Bool = false, SR_damping::Bool = false, use_wakefield::Bool = false )
     E0 = E0_ini
     ϕ = ϕ0_ini
     ΔE = ΔE_ini
@@ -47,8 +47,14 @@ function longitudinal_evolve(n_turns::Int64, ϕ0_ini::Float64,ΔE_ini::Float64 ,
         
         if use_wakefield == true
             # W(s) = Z0 * c / (π * a^2) Exp[-s/(c*τ)] * cos(sqrt(2*kp/a) * s)
-            if ϕ-asin(sin_ϕs) > 0
-                
+            z = 2*π*(ϕ-asin(sin_ϕs))*β0*SPEED_LIGHT*γ0^3/freq_rf
+            cτ = 1e-6
+            kp = 10e-6
+            if ϕ-asin(sin_ϕs) < 0
+                Z0 = 120 * π
+                WF = Z0 * SPEED_LIGHT / (π * pipe_rad^2) * exp(-z/cτ) * cos(sqrt(2*kp/pipe_rad)*z)
+                println(z)
+                ΔE -= WF
             else
 
             end
@@ -78,11 +84,11 @@ function longitudinal_evolve(n_turns::Int64, ϕ0_ini::Float64,ΔE_ini::Float64 ,
 end
 
 turns = 750
-energy = 4e9
+energy = 3e9
 mass = .511e6
 voltage = 5e6
 harmonic = 360
-radius = 25.
+radius = 250.
 pipe_radius = .00025
 
 α_c = 3.68e-4
@@ -91,10 +97,12 @@ pipe_radius = .00025
 η = α_c - 1/γ^2
 C_γ = 8.85e-5
 U_SR = C_γ * (energy/1e9)^4 / radius * 1e9
-sin_ϕs = U_SR / voltage
+# sin_ϕs = U_SR / voltage
+sin_ϕs = 0.5
 ϕs = asin(sin_ϕs)
 ϕ0 = π/2 - ϕs
 rf_cav_length = 1.
+freq_rf = 28.15e6
 
 
 function plot_phase_space_compare(;with_effects::Bool = true, without_effects::Bool = true, lower_range::Float64 = 0., upper_range::Float64 = 0.125*energy, n_points::Int64 = 9)
@@ -109,7 +117,7 @@ function plot_phase_space_compare(;with_effects::Bool = true, without_effects::B
         for i in range(lower_range, upper_range, length = n_points)
             label = round(i, sigdigits = 3)
             
-            ϕ_data_effects, ΔE_data_effects = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, true, true, true, true)
+            ϕ_data_effects, ΔE_data_effects = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, freq_rf, true, true, true, false)
             plot!(ϕ_data_effects,ΔE_data_effects/1e9, label = "ΔE = $label GeV", title = "With SR Damping and Wakefield Effects", legend = :outertopright, linecolor = colors[idx])
             idx +=1
         end
@@ -118,7 +126,7 @@ function plot_phase_space_compare(;with_effects::Bool = true, without_effects::B
         for i in range(lower_range, upper_range, length = n_points)
             label = round(i, sigdigits = 3)
 
-            ϕ_data, ΔE_data = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, false, false, false, false)
+            ϕ_data, ΔE_data = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, freq_rf,false, false, false, false)
             plot!(ϕ_data,ΔE_data/1e9, label = "ΔE = $label GeV", title = "With no effects", legend = :outertopright, xlabel="ϕ", ylabel="ΔE [GeV]", linecolor = colors[idx])
             idx +=1
         end
@@ -127,10 +135,10 @@ function plot_phase_space_compare(;with_effects::Bool = true, without_effects::B
         for i in range(lower_range, upper_range, length = n_points)
             label = round(i, sigdigits = 3)
     
-            ϕ_data_effects, ΔE_data_effects = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, true, true, true, true)
+            ϕ_data_effects, ΔE_data_effects = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, freq_rf,true, true, true, false)
             plot!(ϕ_data_effects,ΔE_data_effects/1e9, label = "ΔE = $label GeV", title = "With SR Damping and Wakefield Effects", legend = false, linecolor = colors[idx])
     
-            ϕ_data, ΔE_data = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, false, false, false, false)
+            ϕ_data, ΔE_data = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, freq_rf,false, false, false, false)
             
             plot!(ϕ_data,ΔE_data/1e9, label = "ΔE = $label GeV", subplot = 2, title = "With no effects",legend = (1.15, 0.75), rightmargin = 50mm, linecolor = colors[idx])
             idx +=1
@@ -152,10 +160,10 @@ function plot_phase_space_compare_animated(;with_effects::Bool = true, without_e
     ϕ_data_no_effects = Array[]
     ΔE_data_no_effects = Array[]
     for i in energies
-        push!(ϕ_data_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, true, true, true, true)[1])
-        push!(ΔE_data_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, true, true, true, true)[2])
-        push!(ϕ_data_no_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius)[1])
-        push!(ΔE_data_no_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius)[2])
+        push!(ϕ_data_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius,freq_rf, true, true, true, false)[1])
+        push!(ΔE_data_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius,freq_rf, true, true, true, false)[2])
+        push!(ϕ_data_no_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius,freq_rf,)[1])
+        push!(ΔE_data_no_effects,longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, freq_rf,)[2])
     end
     label = ["ΔE = $i GeV" for i in energies]
     if with_effects && without_effects
@@ -189,11 +197,40 @@ function plot_phase_space_compare_animated(;with_effects::Bool = true, without_e
 end
 
 
-plot_phase_space_compare(;n_points = 7,)
+plot_phase_space_compare(;n_points = 7)
 
 plot_phase_space_compare_animated( n_points = 7)
 ### HOW TO CENTER?
 
+
+
+
 #IF I CHANGE THE ΔE_INI to anything > .1*E0, it reaches a stable point far away
 # xlims!(950, 1050)
 # W(s) = Z0 * c / (π * a^2) Exp[-s/(c*τ)] * cos(sqrt(2*kp/a) * s)
+
+
+
+plot(title = "With SR Damping and Wakefield Effects",size = (600,600))
+for i in range(0, .25*energy, length = 10)
+    label = round(i, sigdigits = 3)
+    ϕ_data_effects, ΔE_data_effects = longitudinal_evolve(turns, ϕ0, i, energy, sin_ϕs, α_c, mass, voltage, harmonic, radius, U_SR, pipe_radius, freq_rf,true, true, true, false)
+    plot!(ϕ_data_effects,ΔE_data_effects/1e9, label = "ΔE = $label GeV",  legend = false)
+end
+plot!(xticks = (0:π/2:2*π, ["0", "π/2", "π", "3π/2", "2π"]), xlims = (0, 2*π), ylims = (-0.5, 0.5), )
+# xlims!(0,100)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
