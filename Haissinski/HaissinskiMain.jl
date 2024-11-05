@@ -44,16 +44,34 @@ Core Data Structures
 
 Immutable structure representing the state of a single particle in the beam.
 
-Fields:
-- `z::T`: Longitudinal position
-- `ΔE::T`: Energy deviation from reference
-- `ϕ::T`: Phase relative to RF
+# Fields
+- `z::T`: Longitudinal position relative to the reference particle
+- `ΔE::T`: Energy deviation from the reference energy
+- `ϕ::T`: Phase relative to the RF wave
+
+# Example
+```julia
+particle = ParticleState(0.1, 1e-3, 0.5)  # position, energy deviation, phase
+```
 """
 struct ParticleState{T<:AbstractFloat}
     z::T
     ΔE::T
     ϕ::T
 end ;
+
+"""
+    BeamTurn{T,N}
+
+Container for particle states across multiple turns, optimized for efficient memory access.
+
+# Fields
+- `states::SVector{N,StructArray{ParticleState{T}}}`: Static vector of particle states for each turn
+
+# Type Parameters
+- `T`: Floating-point precision type
+- `N`: Number of turns plus one (includes initial state)
+"""
 
 struct BeamTurn{T,N}
     states::SVector{N,StructArray{ParticleState{T}}}
@@ -97,13 +115,17 @@ Base.length(pt::BeamTurn{T,N}) where {T,N} = N
 
 Pre-allocated buffers for efficient computation during simulation.
 
-Fields:
-- `WF::Vector{T}`: Wakefield calculations
-- `potential::Vector{T}`: Potential energy calculations
-- `Δγ::Vector{T}`: Gamma factor deviations
-- `η::Vector{T}`: Slip factor calculations
-- `coeff::Vector{T}`: Temporary coefficients
-- `temp_z`, `temp_ΔE`, `temp_ϕ`: General temporary storage
+# Fields
+- `WF::Vector{T}`: Buffer for wakefield calculations
+- `potential::Vector{T}`: Buffer for potential energy calculations
+- `Δγ::Vector{T}`: Buffer for gamma factor deviations
+- `η::Vector{T}`: Buffer for slip factor calculations
+- `coeff::Vector{T}`: Buffer for temporary coefficients
+- `temp_z::Vector{T}`: General temporary storage for z coordinates
+- `temp_ΔE::Vector{T}`: General temporary storage for energy deviations
+- `temp_ϕ::Vector{T}`: General temporary storage for phases
+
+Used internally to minimize memory allocations during simulation steps.
 """
 struct SimulationBuffers{T<:AbstractFloat}
     WF::Vector{T}
@@ -123,39 +145,50 @@ High-Level Simulation Functions
 """
     longitudinal_evolve(n_turns, particle_states, ϕs, α_c, mass, voltage, harmonic, 
                        acc_radius, freq_rf, pipe_radius, E0, σ_E; kwargs...) 
-                       -> Union{Vector{Tuple}, Tuple{Vector{Tuple}, Vector{Any}}}
-                       -> BeamTurn{T,N}
+                       -> Union{BeamTurn{T,N}, Tuple{BeamTurn{T,N}, Vector{Any}}}
 
-Main simulation function for longitudinal beam evolution.
+Simulate longitudinal beam evolution over multiple turns.
 
-Parameters:
-- `n_turns`: Number of turns to simulate
-- `particle_states`: Initial particle states
-- `ϕs`: Synchronous phase
-- `α_c`: Momentum compaction factor
-- `mass`: Particle mass
-- `voltage`: RF voltage
-- `harmonic`: RF harmonic number
-- `acc_radius`: Accelerator radius
-- `freq_rf`: RF frequency
-- `pipe_radius`: Beam pipe radius
-- `E0`: Reference energy
-- `σ_E`: Energy spread
+# Arguments
+- `n_turns::Int`: Number of turns to simulate
+- `particle_states::StructArray{ParticleState{T}}`: Initial particle states
+- `ϕs::T`: Synchronous phase
+- `α_c::T`: Momentum compaction factor
+- `mass::T`: Particle mass
+- `voltage::T`: RF voltage
+- `harmonic::Int`: RF harmonic number
+- `acc_radius::T`: Accelerator radius
+- `freq_rf::T`: RF frequency
+- `pipe_radius::T`: Beam pipe radius
+- `E0::T`: Reference energy
+- `σ_E::T`: Energy spread
 
-Optional kwargs:
-- `update_η`: Enable slip factor updates
-- `update_E0`: Enable reference energy updates
-- `SR_damping`: Enable synchrotron radiation damping
-- `use_excitation`: Enable quantum excitation
-- `use_wakefield`: Enable wakefield effects
-- `plot_potential`: Enable potential plotting
-- `write_to_file`: Enable data writing to file
-- `output_file`: Output file path
-- `additional_metadata`: Additional simulation metadata
+# Keywords
+- `update_η::Bool=false`: Enable slip factor updates
+- `update_E0::Bool=false`: Enable reference energy updates
+- `SR_damping::Bool=false`: Enable synchrotron radiation damping
+- `use_excitation::Bool=false`: Enable quantum excitation
+- `use_wakefield::Bool=false`: Enable wakefield effects
+- `plot_potential::Bool=false`: Enable potential plotting
+- `write_to_file::Bool=false`: Enable data writing to file
+- `output_file::String="particles_output.hdf5"`: Output file path
+- `additional_metadata::Dict{String,Any}=Dict{String,Any}()`: Additional simulation metadata
 
-Returns:
-- Vector of particle states for each turn
-- Optional potential plots if enabled
+# Returns
+- Without potential plots: `BeamTurn{T,N}` containing particle states for each turn
+- With potential plots: Tuple of `BeamTurn{T,N}` and vector of potential plots
+
+# Example
+```julia
+# Basic usage
+states = longitudinal_evolve(1000, initial_states, 0.0, 1e-3, mass_electron,
+                           1e6, 400, 100.0, 500e6, 0.02, 1e9, 1e-3)
+
+# With additional features
+states, plots = longitudinal_evolve(1000, initial_states, 0.0, 1e-3, mass_electron,
+                                  1e6, 400, 100.0, 500e6, 0.02, 1e9, 1e-3;
+                                  SR_damping=true, plot_potential=true)
+```
 """
 function longitudinal_evolve(
     n_turns::Int,
@@ -388,18 +421,26 @@ function longitudinal_evolve(
 end ;
 
 """
-    generate_particles(μ_z, μ_E, σ_z, σ_E, num_particles, α_c, E_ini, harmonic, 
-                      voltage, ϕs, radius) -> StructArray{ParticleState{T}}
+    generate_particles(μ_z::T, μ_E::T, σ_z::T, σ_E::T, num_particles::Int) 
+                      -> StructArray{ParticleState{T}}
 
-Generate initial particle distribution for simulation.
+Generate initial particle distribution for simulation using multivariate normal distribution.
 
-Parameters:
-- `μ_z`, `μ_E`: Mean position and energy
-- `σ_z`, `σ_E`: Position and energy spread
-- `num_particles`: Number of particles to generate
+# Arguments
+- `μ_z::T`: Mean longitudinal position
+- `μ_E::T`: Mean energy deviation
+- `σ_z::T`: Position spread (standard deviation)
+- `σ_E::T`: Energy spread (standard deviation)
+- `num_particles::Int`: Number of particles to generate
 
-Returns:
-- StructArray of initial particle states
+# Returns
+- `StructArray{ParticleState{T}}`: Array of initial particle states
+
+# Example
+```julia
+# Generate 10000 particles with given parameters
+particles = generate_particles(0.0, 0.0, 1e-3, 1e-4, 10000)
+```
 """
 function generate_particles(
     μ_z::T,
@@ -467,15 +508,25 @@ Data Management Functions
 =#
 
 """
-    write_particle_evolution(filename, particle_states; metadata) -> Nothing
+    write_particle_evolution(filename::String, particle_states::Vector{StructArray{ParticleState{T}}};
+                           metadata::Dict{String,Any}=Dict{String,Any}()) -> Nothing
 
-Write particle evolution data to HDF5 file.
+Write particle evolution data to HDF5 file with optimized chunking.
 
-Parameters:
-- `filename`: Output file path
-- `particle_states`: Vector of particle states for each turn
-- `metadata`: Optional dictionary of metadata
+# Arguments
+- `filename::String`: Output file path
+- `particle_states::Vector{StructArray{ParticleState{T}}}`: Vector of particle states for each turn
+- `metadata::Dict{String,Any}=Dict{String,Any}()`: Optional dictionary of metadata
+
+# Example
+```julia
+# Save simulation results with metadata
+metadata = Dict("voltage" => 1e6, "turns" => 1000)
+write_particle_evolution("simulation_results.h5", states; metadata=metadata)
+```
 """
+
+
 function write_particle_evolution(filename::String, 
                                 particle_states::Vector{StructArray{ParticleState{T}}};
                                 metadata::Dict{String, Any}=Dict{String, Any}()) where T<:AbstractFloat
@@ -526,17 +577,26 @@ function write_particle_evolution(filename::String,
 end ;
 
 """
-    read_particle_evolution(filename; turn_range) 
-    -> Tuple{Vector{StructArray{ParticleState{T}}}, Dict{String, Any}}
+    read_particle_evolution(filename::String; turn_range=nothing)
+                          -> Tuple{Vector{StructArray{ParticleState{T}}}, Dict{String,Any}}
 
 Read particle evolution data from HDF5 file.
 
-Parameters:
-- `filename`: Input file path
-- `turn_range`: Optional range of turns to read
+# Arguments
+- `filename::String`: Input file path
+- `turn_range=nothing`: Optional range of turns to read
 
-Returns:
-- Tuple of particle states and metadata
+# Returns
+- Tuple of particle states and metadata dictionary
+
+# Example
+```julia
+# Read all turns
+states, metadata = read_particle_evolution("simulation_results.h5")
+
+# Read specific turn range
+states, metadata = read_particle_evolution("simulation_results.h5", turn_range=1:100)
+```
 """
 function read_particle_evolution(filename::String; turn_range=nothing)
     h5open(filename, "r") do file
@@ -585,16 +645,22 @@ function read_particle_evolution(filename::String; turn_range=nothing)
 end ;
 
 """
-    read_turn_range(filename, turn_range) -> StructArray{ParticleState{T}}
+    read_turn_range(filename::String, turn_range::AbstractRange) -> StructArray{ParticleState{T}}
 
-Read specific turn range from HDF5 file.
+Efficiently read specific turn range from HDF5 file.
 
-Parameters:
-- `filename`: Input file path
-- `turn_range`: Range of turns to read
+# Arguments
+- `filename::String`: Input file path
+- `turn_range::AbstractRange`: Range of turns to read
 
-Returns:
-- StructArray of particle states for specified turns
+# Returns
+- `StructArray{ParticleState{T}}`: Particle states for specified turns
+
+# Example
+```julia
+# Read turns 100-200
+states = read_turn_range("simulation_results.h5", 100:200)
+```
 """
 function read_turn_range(filename::String, turn_range::AbstractRange)
     h5open(filename, "r") do file
@@ -616,20 +682,28 @@ Physics Calculation Functions
 =#
 
 """
-    make_separatrix(ϕs, voltage, energy, harmonic, η, β) -> Tuple{Vector{Float64}, Vector{Float64}}
+    make_separatrix(ϕs::Float64, voltage::Float64, energy::Float64, 
+                   harmonic::Int64, η::Float64, β::Float64) 
+                   -> Tuple{Vector{Float64}, Vector{Float64}}
 
-Calculate separatrix coordinates for phase space visualization.
+Calculate separatrix coordinates for phase space visualization using optimized numerical methods.
 
-Parameters:
-- `ϕs`: Synchronous phase
-- `voltage`: RF voltage
-- `energy`: Reference energy
-- `harmonic`: RF harmonic number
-- `η`: Slip factor
-- `β`: Relativistic beta
+# Arguments
+- `ϕs::Float64`: Synchronous phase
+- `voltage::Float64`: RF voltage
+- `energy::Float64`: Reference energy
+- `harmonic::Int64`: RF harmonic number
+- `η::Float64`: Slip factor
+- `β::Float64`: Relativistic beta
 
-Returns:
-- Tuple of phase and energy coordinates for separatrix
+# Returns
+- Tuple of vectors containing phase and energy coordinates for separatrix
+
+# Example
+```julia
+# Calculate separatrix for given parameters
+phases, energies = make_separatrix(0.0, 1e6, 1e9, 400, 1e-3, 0.999999)
+```
 """
 function make_separatrix(ϕs::Float64, voltage::Float64, energy::Float64, 
     harmonic::Int64, η::Float64, β::Float64)
@@ -708,16 +782,42 @@ Visualization Functions
 =#
 
 """
-    all_animate(n_turns, particles_out, ϕs, α_c, mass, voltage, harmonic, acc_radius, 
-               freq_rf, pipe_radius, E0, σ_E, σ_z, filename) -> Nothing
+    all_animate(n_turns, particles_out, ϕs, α_c, mass, voltage, harmonic, E0, σ_E, σ_z, [filename]) -> Nothing
 
-Generate animation of beam evolution.
+Generate an animation visualizing beam evolution over multiple turns. Creates histograms of particle 
+distributions and phase space plots.
 
-Parameters:
-- `n_turns`: Number of turns to animate
-- `particles_out`: Vector of particle states for each turn
-- Additional parameters matching simulation parameters
-- `filename`: Output animation file path
+# Arguments
+- `n_turns::Int64`: Number of turns to animate
+- `particles_out::Union{Vector{Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}}}, BeamTurn{Float64}}`: 
+    Vector of particle states for each turn or BeamTurn object containing particle states
+- `ϕs::Float64`: Synchronous phase
+- `α_c::Float64`: Momentum compaction factor
+- `mass::Float64`: Particle mass
+- `voltage::Float64`: RF cavity voltage
+- `harmonic::Int64`: RF harmonic number
+- `E0::Float64`: Reference beam energy
+- `σ_E::Float64`: Energy spread
+- `σ_z::Float64`: Bunch length
+- `filename::String="all_animation.mp4"`: Output animation file path
+
+# Description
+Creates an animation showing:
+- Phase space distribution (φ vs ΔE/σ_E)
+- Longitudinal distribution histogram (z/σ_z)
+- Energy distribution histogram (ΔE/σ_E)
+- Separatrix boundary in phase space
+
+The animation is saved in a timestamped subfolder under "Haissinski/particle_sims/".
+
+# Example
+```julia
+# For vector of tuples
+all_animate(1000, particle_states, 0.1, 1.89e-4, 0.511e6, 1.0e6, 1320, 3.0e9, 1.0e6, 0.01)
+
+# For BeamTurn object
+all_animate(1000, beam_states, 0.1, 1.89e-4, 0.511e6, 1.0e6, 1320, 3.0e9, 1.0e6, 0.01)
+```
 """
 function all_animate(n_turns::Int64,
     particles_out::Vector{Tuple{Vector{Float64}, Vector{Float64}, Vector{Float64}}},
@@ -829,7 +929,7 @@ end ;
 
 #the below version accepts the particle_out as a BeamTurn object
 function all_animate(n_turns::Int64,
-    particles_out::ParticleTrajectory{Float64},
+    particles_out::BeamTurn{Float64},
     ϕs::Float64, α_c::Float64, mass::Float64, voltage::Float64,
     harmonic::Int64,E0::Float64, σ_E::Float64, σ_z::Float64, filename::String="all_animation.mp4")
 
@@ -938,35 +1038,269 @@ function all_animate(n_turns::Int64,
     println("Animation complete!")
 end ;
 
+"""
+    scatter_particle_data(particle_states, turn_number, ϕs, α_c, mass, voltage, harmonic, 
+                         E0, σ_E, σ_z; filename="particle_scatter.png", ϕ_plot=true, save_fig=true) -> Figure
+
+Generate scatter plots of particle distributions at a specific turn.
+
+# Arguments
+- `particle_states::BeamTurn{Float64}`: BeamTurn object containing particle states
+- `turn_number::Int64`: Turn number to plot
+- `ϕs::Float64`: Synchronous phase
+- `α_c::Float64`: Momentum compaction factor
+- `mass::Float64`: Particle mass
+- `voltage::Float64`: RF cavity voltage
+- `harmonic::Int64`: RF harmonic number
+- `E0::Float64`: Reference beam energy
+- `σ_E::Float64`: Energy spread
+- `σ_z::Float64`: Bunch length
+
+# Keywords
+- `filename::String="particle_scatter.png"`: Output file path
+- `ϕ_plot::Bool=true`: If true, plot φ vs ΔE/σ_E; if false, plot z/σ_z vs ΔE/σ_E
+- `save_fig::Bool=true`: If true, save the figure to file
+
+# Returns
+- `Figure`: Makie figure object containing the scatter plot
+
+# Example
+```julia
+# Plot phase space at turn 100
+fig = scatter_particle_data(beam_states, 100, 0.1, 1.89e-4, 0.511e6, 
+                          1.0e6, 1320, 3.0e9, 1.0e6, 0.01)
+```
+"""
+function scatter_particle_data(particle_states::BeamTurn{Float64}, turn_number::Int64, 
+    ϕs::Float64, α_c::Float64, mass::Float64, voltage::Float64, harmonic::Int64,
+    E0::Float64, σ_E::Float64, σ_z::Float64,; filename::String="particle_scatter.png", ϕ_plot::Bool=true, save_fig::Bool=true)
+    
+    # Precompute separatrix
+    γ = E0/mass
+    β = sqrt(1 - 1/γ^2)
+    η = α_c - 1/γ^2
+    boundary_points = make_separatrix(ϕs, voltage, E0, harmonic, η, β)
+
+    z_data = particles_out[turn_number].z
+    ϕ_data = particles_out[turn_number].ϕ
+    E_data = particles_out[turn_number].ΔE
+    
+    # Create a figure
+    fig = Figure(size=(800, 500))
+    if ϕ_plot
+        # Create axes
+        ax = Axis(fig[1,1], xlabel=L"\phi", ylabel=L"\frac{\Delta E}{\sigma _{E}}")
+        
+        # Plot phase space
+        scatter!(ax, particle_states[turn_number].ϕ, particle_states[turn_number].ΔE/σ_E, color=:black, markersize=1)
+        lines!(ax, boundary_points[1], boundary_points[2]/σ_E, color=:red)
+        
+        # Save the figure
+        save(filename)
+    else
+        # Create axes
+        ax = Axis(fig[1,1], xlabel=L"\frac{z}{\sigma _{z}}", ylabel=L"\frac{\Delta E}{\sigma _{E}}")
+        # Plot phase space
+        scatter!(ax, particle_states[turn_number].z/σ_z, particle_states[turn_number].ΔE/σ_E, color=:black, markersize=1)
+        
+        # Save the figure
+        save(filename)
+    end 
+    return fig
+end;
+
+
+function scatter_particle_data(x_axis::Vector{Float64}, y_axis::Vector{Float64},
+    ϕs::Float64, α_c::Float64, mass::Float64, voltage::Float64, harmonic::Int64,
+    E0::Float64, σ_E::Float64, σ_z::Float64, ;filename::String="particle_scatter.png", ϕ_plot=true, save_fig::Bool=true)
+    
+    timestamp = string(Dates.format(Dates.now(), "yyyy-mm-dd"))
+    folder_storage = "Haissinski/particle_sims/turns$(n_turns)_particles$(length(particles_out[1]))"
+    folder_storage = joinpath(folder_storage, timestamp)
+    mkpath(folder_storage)
+
+    filename = joinpath(folder_storage, filename)
+    # Precompute separatrix
+    γ = E0/mass
+    β = sqrt(1 - 1/γ^2)
+    η = α_c - 1/γ^2
+    boundary_points = make_separatrix(ϕs, voltage, E0, harmonic, η, β)
+    
+    # Create a figure
+    fig = Figure(size=(800, 800))
+
+    if ϕ_plot
+        # Create axes
+        ax = Axis(fig[1,1], xlabel=L"\phi", ylabel=L"\frac{\Delta E}{\sigma _{E}}")
+        
+        # Plot phase space
+        scatter!(ax, x_axis, y_axis, color=:black, markersize=1)
+        lines!(ax, boundary_points[1], boundary_points[2]/σ_E, color=:red)
+        
+        # Save the figure
+        if save_fig
+            save(filename)
+        end
+    else
+        # Create axes
+        ax = Axis(fig[1,1], xlabel=L"\frac{z}{\sigma _{z}}", ylabel=L"\frac{\Delta E}{\sigma _{E}}")
+        # Plot phase space
+        scatter!(ax, x_axis, y_axis, color=:black, markersize=1)
+        
+        # Save the figure
+        if save_fig
+            save(filename)
+        end
+    end
+    return fig
+end; 
+
+
+"""
+    histogram_particle_data(particles_out, turn_number; z_hist=true, e_hist=true, 
+                          filename="histogram_particle.png", save_figs=true) -> Union{Figure, Tuple{Figure, Figure}}
+
+Generate histograms of particle distributions at a specific turn.
+
+# Arguments
+- `particles_out::BeamTurn`: BeamTurn object containing particle states
+- `turn_number::Int64`: Turn number to plot
+
+# Keywords
+- `z_hist::Bool=true`: If true, generate longitudinal distribution histogram
+- `e_hist::Bool=true`: If true, generate energy distribution histogram
+- `filename::String="histogram_particle.png"`: Base filename for output
+- `save_figs::Bool=true`: If true, save figures to files
+
+# Returns
+- If both `z_hist` and `e_hist` are true: Tuple of two Figure objects (z and E histograms)
+- If only one histogram is selected: Single Figure object
+- If neither histogram is selected: Nothing
+
+# Example
+```julia
+# Generate both histograms at turn 100
+z_fig, e_fig = histogram_particle_data(beam_states, 100)
+
+# Generate only energy histogram
+e_fig = histogram_particle_data(beam_states, 100, z_hist=false)
+```
+"""
+
+function histogram_particle_data(particles_out::BeamTurn,turn_number::Int64, ;z_hist::Bool = true,e_hist::Bool=true, filename::String="histogram_particle.png", save_figs::Bool=true)
+    
+    function calculate_fixed_histogram(data::Vector{Float64}, bins::AbstractRange)
+        hist = fit(Histogram, data, bins)
+        centers = (bins[1:end-1] + bins[2:end]) ./ 2
+        return centers, hist.weights
+    end
+
+    timestamp = string(Dates.format(Dates.now(), "yyyy-mm-dd"))
+    folder_storage = "Haissinski/particle_sims/turns$(n_turns)_particles$(length(particles_out[1]))"
+    folder_storage = joinpath(folder_storage, timestamp)
+    mkpath(folder_storage)
+
+    
+    n_bins = 10^(ceil(Int, log10(length(particles_out[1])))-2)
+
+    if z_hist
+        
+        z_bin_width = (5 - (-5)) / n_bins  # Since xlims is (-5, 5)
+        z_bins = range(-5, 5, step=z_bin_width)
+        z_normalized = particles_out[turn_number].z / σ_z
+        z_centers, z_counts = calculate_fixed_histogram(z_normalized, z_bins)
+        z_kde_x, z_kde_y = calculate_kde(z_normalized)
+        fig_z = Figure()
+        ax_z = Axis(fig_z[1,1], xlabel=L"\frac{z}{\sigma _{z}}", ylabel="Count")
+        barplot!(ax_z, z_centers, z_counts, color=(:red, 0.5))
+        lines!(ax_z, z_kde_x, z_kde_y .* length(z_normalized) .* z_bin_width,
+            color=:green, linewidth=2)
+        
+        if save_figs
+            filename = joinpath(folder_storage, filename)
+            if z_hist && e_hist
+                filename = "histogram_particle_z.png"
+                filename = joinpath(folder_storage, filename)
+            end
+            save(filename)
+        end
+    end
+    if e_hist
+        E_bin_width = (120 - (-120)) / n_bins  # Since xlims is (-120, 120)
+        E_bins = range(-120, 120, step=E_bin_width)
+        E_normalized = particles_out[turn_number].ΔE / σ_E
+        E_centers, E_counts = calculate_fixed_histogram(E_normalized, E_bins)
+        E_kde_x, E_kde_y = calculate_kde(E_normalized)
+
+        fig_E = Figure()
+        ax_E = Axis(fig_E[1,1], xlabel=L"\frac{\Delta E}{\sigma _{E}}", ylabel="Count")
+        barplot!(ax_E, E_centers, E_counts, color=(:red, 0.5))
+        lines!(ax_E, E_kde_x, E_kde_y .* length(E_normalized) .* E_bin_width,
+            color=:green, linewidth=2)
+        if save_figs
+            filename = joinpath(folder_storage, filename)
+            if z_hist && e_hist
+                filename = "histogram_particle_E.png"
+                filename = joinpath(folder_storage, filename)
+            end
+            save(filename)
+        end
+    end
+
+    if z_hist && e_hist
+        return fig_z, fig_E
+    elseif z_hist && !e_hist
+        return fig_z
+    elseif e_hist && !z_hist
+        return fig_E
+    else
+        println("No histogram selected")
+    end
+end;
+
+
 
 """
     calculate_histogram(data, bins) -> Tuple{Vector{Float64}, Vector{Float64}}
 
 Calculate histogram for distribution visualization.
 
-Parameters:
-- `data`: Input data vector
-- `bins`: Number of histogram bins
+# Arguments
+- `data::Vector{Float64}`: Input data vector
+- `bins::Int64`: Number of histogram bins
 
-Returns:
-- Tuple of bin centers and counts
+# Returns
+- `Tuple{Vector{Float64}, Vector{Float64}}`: Tuple of (bin_centers, bin_counts)
+
+# Example
+```julia
+centers, counts = calculate_histogram(particle_energies, 50)
+```
 """
 function calculate_histogram(data::Vector{Float64}, bins::Int64)
     hist = fit(Histogram, data, nbins=bins)
     centers = (hist.edges[1][1:end-1] + hist.edges[1][2:end]) ./ 2
     return centers, hist.weights
 end ;
+
 """
     calculate_kde(data, bandwidth=nothing) -> Tuple{Vector{Float64}, Vector{Float64}}
 
 Calculate kernel density estimate for distribution visualization.
 
-Parameters:
-- `data`: Input data vector
-- `bandwidth`: Optional bandwidth parameter
+# Arguments
+- `data::Vector{Float64}`: Input data vector
+- `bandwidth::Union{Float64, Nothing}=nothing`: Bandwidth parameter for KDE. If nothing, uses 
+    Silverman's rule of thumb: bandwidth = 1.06 * σ * n^(-1/5)
 
-Returns:
-- Tuple of x coordinates and density values
+# Returns
+- `Tuple{Vector{Float64}, Vector{Float64}}`: Tuple of (x_coordinates, density_values)
+
+# Example
+```julia
+x_coords, density = calculate_kde(particle_positions)
+x_coords, density = calculate_kde(particle_positions, bandwidth=0.1)
+```
 """
 function calculate_kde(data::Vector{Float64}, bandwidth=nothing)
     if isnothing(bandwidth)
@@ -985,12 +1319,25 @@ Helper Functions
 
 Create pre-allocated buffers for simulation calculations.
 
-Parameters:
-- `n_particles`: Number of particles
-- `T`: Numeric type for calculations
+# Arguments
+- `n_particles::Int`: Number of particles in simulation
+- `T::Type=Float64`: Numeric type for calculations
 
-Returns:
-- SimulationBuffers struct with pre-allocated arrays
+# Returns
+- `SimulationBuffers{T}`: Struct containing pre-allocated arrays for:
+  - WF: Wakefield values
+  - potential: Wakefield potential
+  - Δγ: Change in Lorentz factor
+  - η: Slip factor
+  - coeff: Temporary coefficients
+  - temp_z: Temporary z positions
+  - temp_ΔE: Temporary energy deviations
+  - temp_ϕ: Temporary phase values
+
+# Example
+```julia
+buffers = create_simulation_buffers(10000)
+```
 """
 function create_simulation_buffers(n_particles::Int, T::Type=Float64)
     SimulationBuffers{T}(
@@ -1009,13 +1356,31 @@ end ;
     apply_wakefield_inplace!(particle_states, buffers, wake_factor, wake_sqrt, cτ, 
                            E0, acc_radius, n_particles) -> Nothing
 
-Apply wakefield effects to particle states in-place.
+Apply wakefield effects to particle states in-place using optimized calculations.
 
-Parameters:
-- `particle_states`: Current particle states
-- `buffers`: Pre-allocated calculation buffers
-- Additional wakefield parameters
+# Arguments
+- `particle_states::StructArray{ParticleState{T}}`: Current particle states
+- `buffers::SimulationBuffers{T}`: Pre-allocated calculation buffers
+- `wake_factor::T`: Wakefield strength factor
+- `wake_sqrt::T`: Square root term for wakefield calculation
+- `cτ::T`: Characteristic time
+- `E0::T`: Reference beam energy
+- `acc_radius::T`: Accelerator radius
+- `n_particles::Int`: Number of particles
+
+# Implementation Notes
+- Uses branchless operations for performance
+- Implements SIMD optimizations
+- Sorts particles by z-position before wakefield calculation
+- Uses linear interpolation for potential calculation
+
+# Example
+```julia
+apply_wakefield_inplace!(particles, buffers, 1.0e6, sqrt(2.0), 1.0e-12, 
+                        3.0e9, 75.0, 10000)
+```
 """
+
 function apply_wakefield_inplace!(
     particle_states::StructArray{ParticleState{T}},
     buffers::SimulationBuffers{T},
@@ -1069,14 +1434,25 @@ end ;
 """
     convolve_inplace!(output, signal, positions, n_particles) -> Nothing
 
-Perform in-place convolution for wakefield calculations.
+Perform in-place convolution for wakefield calculations using multi-threading.
 
-Parameters:
-- `output`: Pre-allocated output buffer
-- `signal`: Input signal vector
-- `positions`: Particle positions
-- `n_particles`: Number of particles
+# Arguments
+- `output::Vector{T}`: Pre-allocated output buffer
+- `signal::Vector{T}`: Input signal vector
+- `positions::Vector{T}`: Particle positions
+- `n_particles::Int`: Number of particles
+
+# Implementation Notes
+- Uses multi-threading for parallel computation
+- Implements smoothed delta function for numerical stability
+- Output buffer is zeroed before calculation
+
+# Example
+```julia
+convolve_inplace!(potential, wakefield, z_positions, 10000)
+```
 """
+
 function convolve_inplace!(
     output::Vector{T},
     signal::Vector{T},
@@ -1102,16 +1478,25 @@ end ;
 """
     delta(x::T, ϵ::T) where T<:AbstractFloat -> T
 
-Calculate delta function for wakefield smoothing.
+Calculate smoothed delta function for wakefield calculations.
 
-Parameters:
-- `x`: Input value
-- `ϵ`: Smoothing parameter
+# Arguments
+- `x::T`: Input value
+- `ϵ::T`: Smoothing parameter
 
-Returns:
-- Smoothed delta function value
+# Returns
+- `T`: Smoothed delta function value
 
+# Implementation Notes
+- Uses pre-computed 1/π for efficiency
+- Implements Lorentzian smoothing
+
+# Example
+```julia
+smoothed_value = delta(0.1, 1e-3)
+```
 """
+
 @inline function delta(x::T, ϵ::T) where T<:AbstractFloat
     inv_π = T(0.31830988618379067)  # 1/π pre-computed
     return (ϵ * inv_π) / (x * x + ϵ * ϵ)
@@ -1144,7 +1529,7 @@ freq_rf = 280.15e7 ;
 
 
 
-particle_states = generate_particles(μ_z, μ_E, σ_z,σ_E, 100000) ;
+particle_states = generate_particles(μ_z, μ_E, σ_z,σ_E, 10000) ;
 results, plots= longitudinal_evolve(
     1000, particle_states, ϕs, α_c, mass, voltage,
     harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
@@ -1191,4 +1576,14 @@ all_animate(100, traj, ϕs, α_c, mass, voltage, harmonic,energy, σ_E, σ_z, "t
     use_excitation=true, plot_potential=false, write_to_file=false, output_file="test1.h5"); 
     #659.240 s (435066 allocations: 8.25 GiB), 1e5 particles, 1e3 turns
 
+particles_out = longitudinal_evolve(
+    1000, particle_states, ϕs, α_c, mass, voltage,
+    harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
+    use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
+    use_excitation=true, plot_potential=false, write_to_file=false, output_file="test1.h5") ;
 
+# z_hist, E_hist = histogram_particle_data(particles_out,10 ,save_figs = false)
+# z_hist
+
+scatter_plot = scatter_particle_data(particles_out, 100, ϕs, α_c, mass, voltage, harmonic, energy, σ_E, σ_z, filename="scatter_particle.png", ϕ_plot=true, save_fig=false);
+scatter_plot
