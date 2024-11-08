@@ -35,7 +35,9 @@ using OffsetArrays ;
 using ColorSchemes
 using ThreadsX ;
 using FLoops ; 
+using FHist ; 
 using ProgressMeter ; 
+using Strided ;
 # Physical constants
 
 const SPEED_LIGHT = 299792458 ;
@@ -146,9 +148,11 @@ struct SimulationBuffers{T<:AbstractFloat}
     temp_ϕ::Vector{T}
 end ;
 
+
 #=
 High-Level Simulation Functions
 =#
+
 
 """
     longitudinal_evolve(n_turns, particle_states, ϕs, α_c, mass, voltage, harmonic, 
@@ -233,7 +237,7 @@ function longitudinal_evolve(
     # Initialize sizes and buffers
     n_particles = length(particle_states.z)
     buffers = create_simulation_buffers(n_particles, T)
-
+    
     particle_trajectory = BeamTurn{T}(n_turns, n_particles)
 
     # Initialize phases using pre-allocated buffer
@@ -305,8 +309,6 @@ function longitudinal_evolve(
             end
         end
     end
-    
-    # Pre-allocate wakefield parameters if needed
     if use_wakefield
         kp = T(3e1)
         Z0 = T(120π)
@@ -321,7 +323,7 @@ function longitudinal_evolve(
     # Main evolution loop with minimal allocations
     @inbounds for turn in 1:n_turns
         # Energy kick from RF using SIMD
-        @turbo for i in 1:n_particles
+        @tturbo for i in 1:n_particles
             particle_states.ΔE[i] += voltage * (sin(particle_states.ϕ[i]) - sin_ϕs)
         end
         
@@ -338,21 +340,25 @@ function longitudinal_evolve(
             ∂U_∂E = 4 * 8.85e-5 * (E0/1e9)^3 / acc_radius
             excitation = sqrt(1-∂U_∂E^2) * σ_E
             randn!(buffers.potential)
-            @turbo for i in 1:n_particles
+            @tturbo for i in 1:n_particles
                 particle_states.ΔE[i] += excitation * buffers.potential[i]
             end
         end
         
         # Apply wakefield effects if enabled
         if use_wakefield
+            ν_s = sqrt(voltage * harmonic * α_c / (2π * E0))
+            curr = (abs(η) / η) * ELECTRON_CHARGE / (2 * π * ν_s * σ_E) * (1e11/(10.0^floor(Int, log10(n_particles)))) * n_particles
             if plot_potential && plot_WF
+
                 
                 apply_wakefield_inplace!(
                     particle_states, buffers, wake_factor, wake_sqrt, cτ,
-                    E0, acc_radius, n_particles
+                    E0, acc_radius, n_particles, curr
                 )
                 # Store potential plot for this turn
                 fig = Figure(size=(800, 500))
+
                 # Create axes that will be reused
                 ax = Axis(fig[1, 1], xlabel=L"z", ylabel=L"\mathrm{Potential}")
                 scatter!(ax,
@@ -361,6 +367,7 @@ function longitudinal_evolve(
                     markersize = 3
                 )
                 potential_plots[turn] = fig
+
                 fig2 = Figure(size=(800, 500))
                 ax2 = Axis(fig2[1, 1], xlabel=L"z", ylabel=L"\mathrm{WF}")
                 # xlims!(ax2, -.02, 0)
@@ -372,9 +379,10 @@ function longitudinal_evolve(
                 WF_plots[turn] = fig2
                 
             elseif plot_WF && !plot_potential
+ 
                 apply_wakefield_inplace!(
                     particle_states, buffers, wake_factor, wake_sqrt, cτ,
-                    E0, acc_radius, n_particles
+                    E0, acc_radius, n_particles, curr
                 )
                 fig2 = Figure(size=(800, 500))
                 ax2 = Axis(fig2[1, 1], xlabel=L"z", ylabel=L"\mathrm{WF}")
@@ -385,10 +393,11 @@ function longitudinal_evolve(
                     markersize = 3
                 )
                 WF_plots[turn] = fig2
+
             elseif plot_potential && !plot_WF
                 apply_wakefield_inplace!(
                     particle_states, buffers, wake_factor, wake_sqrt, cτ,
-                    E0, acc_radius, n_particles
+                    E0, acc_radius, n_particles, curr
                 )
                 # Store potential plot for this turn
                 fig = Figure(size=(800, 500))
@@ -404,7 +413,7 @@ function longitudinal_evolve(
             else
                 apply_wakefield_inplace!(
                     particle_states, buffers, wake_factor, wake_sqrt, cτ,
-                    E0, acc_radius, n_particles
+                    E0, acc_radius, n_particles, curr
                 )
             end
         end
@@ -418,7 +427,7 @@ function longitudinal_evolve(
         
         # Update phase advance using pre-allocated buffers
         if update_η
-            @turbo for i in 1:n_particles
+            @tturbo for i in 1:n_particles
                 buffers.Δγ[i] = particle_states.ΔE[i] / mass
                 buffers.η[i] = α_c - 1/(γ0 + buffers.Δγ[i])^2
                 buffers.coeff[i] = 2π * harmonic * buffers.η[i] / (β0 * β0 * E0)
@@ -426,17 +435,18 @@ function longitudinal_evolve(
             end
         else
             coeff = 2π * harmonic * η0 / (β0 * β0 * E0)
-            @turbo for i in 1:n_particles
+            @tturbo for i in 1:n_particles
                 particle_states.ϕ[i] += coeff * particle_states.ΔE[i]
             end
         end
         
         # Update z coordinates using SIMD
         rf_factor = freq_rf * 2π / (β0 * SPEED_LIGHT)
-        @turbo for i in 1:n_particles
+        @tturbo for i in 1:n_particles
             particle_states.z[i] = (-particle_states.ϕ[i] + ϕs) / rf_factor
         end
         copyto!(particle_trajectory, turn+1, particle_states)
+
         if write_to_file
             h5open(output_file, "r+") do file
                 file["z"][:, turn + 1] = particle_states.z
@@ -447,14 +457,12 @@ function longitudinal_evolve(
         next!(p)
     end
     if plot_potential && plot_WF
-        # return master_storage, potential_plots
         return particle_trajectory, potential_plots, WF_plots
     elseif plot_potential && !plot_WF
-        return master_storage, potential_plots
+        return particle_trajectory, potential_plots
     elseif !plot_potential && plot_WF
-        return master_storage, WF_plots
+        return particle_trajectory, WF_plots
     else
-        # return master_storage
         return particle_trajectory
     end
 end ;
@@ -819,6 +827,7 @@ end ;
 #=
 Visualization Functions
 =#
+
 
 """
     all_animate(n_turns, particles_out, ϕs, α_c, mass, voltage, harmonic, E0, σ_E, σ_z, [filename]) -> Nothing
@@ -1191,10 +1200,13 @@ Calculate histogram for distribution visualization.
 centers, counts = calculate_histogram(particle_energies, 50)
 ```
 """
-function calculate_histogram(data::Vector{Float64}, bins::Int64)
-    hist = fit(Histogram, data, nbins=bins)
-    centers = (hist.edges[1][1:end-1] + hist.edges[1][2:end]) ./ 2
-    return centers, hist.weights
+@inline function calculate_histogram(data::Vector{Float64}, bins::Int64)
+    # hist = fit(Histogram, data, nbins=bins)
+    # centers = (hist.edges[1][1:end-1] + hist.edges[1][2:end]) ./ 2
+    # return collect(centers), hist.weights
+    histo = Hist1D(data, nbins=bins)
+    centers = (histo.binedges[1][1:end-1] + histo.binedges[1][2:end]) ./ 2
+    return collect(centers), histo.bincounts
 end ;
 
 """
@@ -1216,7 +1228,7 @@ x_coords, density = calculate_kde(particle_positions)
 x_coords, density = calculate_kde(particle_positions, bandwidth=0.1)
 ```
 """
-function calculate_kde(data::Vector{Float64}, bandwidth=nothing)
+@inline function calculate_kde(data::Vector{Float64}, bandwidth=nothing)
     if isnothing(bandwidth)
         bandwidth = 1.06 * std(data) * length(data)^(-0.2)
     end
@@ -1266,6 +1278,13 @@ function create_simulation_buffers(n_particles::Int, T::Type=Float64)
     )
 end ;
 
+
+
+@inline function dierckx_interpolation(x, y, query_points)
+    spl = Spline1D(x, y; k=1, bc="extrapolate")  # k=1 for linear interpolation
+    return evaluate(spl, query_points)
+end
+
 """
     apply_wakefield_inplace!(particle_states, buffers, wake_factor, wake_sqrt, cτ, 
                             E0, acc_radius, n_particles) -> Nothing
@@ -1295,6 +1314,7 @@ apply_wakefield_inplace!(particles, buffers, 1.0e6, sqrt(2.0), 1.0e-12,
 ```
 """
 
+
 function apply_wakefield_inplace!(
     particle_states::StructArray{ParticleState{T}},
     buffers::SimulationBuffers{T},
@@ -1303,54 +1323,157 @@ function apply_wakefield_inplace!(
     cτ::T,
     E0::T,
     acc_radius::T,
-    n_particles::Int
-) where T<:AbstractFloat
+    n_particles::Int,
+    current::T) where T<:AbstractFloat
+    # Pre-compute constants
+    # const_scale = (ELECTRON_CHARGE) / (E0 * 2π * acc_radius) * (1e11/(10.0^floor(Int, log10(n_particles))))
+    scale_factor = current
+    println(current)
+    # Avoid redundant clearing if buffers are already zero
+    if !all(iszero, buffers.WF)
+        fill!(buffers.WF, zero(T))
+    end
+    if !all(iszero, buffers.potential)
+        fill!(buffers.potential, zero(T))
+    end
+    # sort!(particle_states, by=x->x.z)
+    z_positions = @views particle_states.z
+
+    # Pre-compute expensive operations
+    inv_cτ = 1 / cτ
     
-    # Pre-compute scaling factor
-    scale_factor = (n_particles * ELECTRON_CHARGE) / (E0 * 2π * acc_radius) * (1e11/floor(Int, log10(n_particles)))
+    # Optimize bin calculation
+    sort!(z_positions)
 
-    # Sort particles by z-position for faster access
-    sort!(particle_states, by=x->x.z)
-    z_positions = particle_states.z
+    nbins = Int(10^(ceil(Int, log10(length(z_positions)))-2) )
+    bin_centers, bin_amounts = calculate_histogram(z_positions, nbins)
+    bin_size = bin_centers[2] - bin_centers[1]
+    
+    # Pre-allocate arrays
+    WF_temp = Vector{T}(undef, length(bin_centers))
+    λ = Vector{T}(undef, length(bin_centers))
+    
     
 
-    # Initialize wakefield buffer and bin-related variables
-    fill!(buffers.WF, zero(T))
-    n_bins = 10^(ceil(Int, log10(length(z_positions)))-2) 
-    bin_starts = collect(range(minimum(z_positions), stop=maximum(z_positions), length=n_bins))
-    bin_size = bin_starts[2] - bin_starts[1]
-    bin_potentials = similar(bin_starts)
-    fill!(buffers.potential, zero(T))
-    sort!(bin_starts)
-    # Calculate wakefield in parallel with binning
-    @inbounds @threads for i in 1:n_bins
-        sum_val = zero(T)
-        bins_i = bin_starts[i]
-        for j in 1:n_bins
-            bins_j = bin_starts[j]
-            is_negative = bins_i > bins_j
-            dz = bins_i - bins_j
-            wake_term = wake_factor * exp(-dz / cτ) * cos(wake_sqrt * -dz)
-            buffers.WF[j] = is_negative * wake_term * scale_factor
-            sum_val += buffers.WF[j] * delta(bins_j,7.5/Float64(10^(ceil(Int, log10(length(z_positions)))/6+2.5))  )
-        end
-        bin_potentials[i] = sum_val * 2.25e2 #This extra factor is to get it on the same order of magnitude as the other method
+    # Vectorize WF calculation
+    @tturbo for i in eachindex(bin_centers)
+        z = bin_centers[i]
+        WF_temp[i] = z > 0 ? zero(T) : wake_factor * exp(z * inv_cτ) * cos(wake_sqrt * z)
     end
-    function dierckx_interpolation(x, y, query_points)
-        spl = Spline1D(x, y; k=1)  # k=1 for linear interpolation
-        return evaluate(spl, query_points)
+    # Vectorize λ calculation with pre-computed log value
+    log_bin_size = 10.0^(ceil(Int, log10(bin_size)+2))
+    # @inbounds @threads  for i in eachindex(bin_centers)
+    #     @strided λ[i] = delta(bin_centers[i], log_bin_size)
+    # end
+
+    @tturbo  for i in eachindex(bin_centers)
+        λ[i] = delta(bin_centers[i], log_bin_size)
     end
 
-    itp = dierckx_interpolation(bin_starts, bin_potentials, z_positions)
-    @inbounds @threads for i in 1:n_particles
-        particle_states.ΔE[i] -= itp[i]
+    normalized_amounts = bin_amounts #./ n_particles
+
+    convol = FastLinearConvolution(WF_temp, λ .* normalized_amounts) .* scale_factor
+
+    temp_z = range(minimum(z_positions), maximum(z_positions), length=length(convol))
+
+    p = sortperm(z_positions)
+    @inbounds @threads for i in eachindex(z_positions)
+        @strided z_positions[i] = z_positions[p[i]]
+        @strided buffers.potential[i] = buffers.potential[p[i]]
     end
 
-    @inbounds @threads for i in 1:n_particles
-        buffers.potential[i] = itp[i]
+    buffers.potential .= LinearInterpolation(temp_z, real.(convol), extrapolation_bc=Line()).(z_positions) 
+
+    # buffers.potential .= dierckx_interpolation(temp_z, real.(convol), z_positions) .* scale_factor
+    
+
+    # @inbounds @threads for i in eachindex(z_positions)
+    #     # @strided z = z_positions[i]
+    #     @strided particle_states.ΔE[i] -= buffers.potential[i]
+    #     @strided buffers.WF[i] = z_positions[i] > 0 ? zero(T) : wake_factor * exp(z_positions[i] * inv_cτ) * cos(wake_sqrt * z_positions[i])
+    # end
+
+
+    @tturbo for i in eachindex(z_positions)
+        z = z_positions[i]
+        particle_states.ΔE[i] -= buffers.potential[i]
+        buffers.WF[i] = z > 0 ? zero(T) : wake_factor * exp(z * inv_cτ) * cos(wake_sqrt * z)
     end
     return nothing
 end
+
+
+
+
+particle_states = generate_particles(μ_z, μ_E, σ_z,σ_E, Int64(1e5)) ;
+@btime longitudinal_evolve(
+    1000, $particle_states, $ϕs, $α_c, $mass, $voltage,
+    $harmonic, $radius, $freq_rf, $pipe_radius, $energy, $σ_E,
+    use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
+    use_excitation=true, plot_potential=false,plot_WF=false, write_to_file=false, output_file="test1.h5"); 
+    #520.225 ms (50993 allocations: 429.23 MiB), 1e5 particles, 1e2 turns
+    #6.611 s (54966 allocations: 3.78 GiB), 1e6 particles, 1e2 turns
+    #6.478 s (516836 allocations: 4.16 GiB), 1e5 particles, 1e3 turns
+    #108.685 s (562503 allocations: 38.15 GiB), 1e6 particles, 1e3 turns !! Takes a bit to get started, but once it does, it's fast
+
+longitudinal_evolve(
+    1, particle_states, ϕs, α_c, mass, voltage,
+    harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
+    use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
+    use_excitation=true, plot_potential=false,plot_WF=false, write_to_file=false, output_file="test1.h5"); 
+
+
+@inline function FastConv1D(f,g)
+    return ifft(fft(f).*fft(g))
+end
+
+@inline function FastLinearConvolution(f,g)
+    
+    N = length(f)
+    M = length(g)
+
+    f_pad = [ f; zeros(M-1) ]     
+    g_pad = [ g; zeros(N-1) ]     
+
+    return FastCyclicConv1D( f_pad, g_pad )
+end
+
+
+# Check if a number is a power of two
+function is_power_of_two(n::Int)
+    return (n & (n - 1)) == 0 && n > 0
+end
+
+# Get the next power of two greater than or equal to a number
+function next_power_of_two(n::Int)
+    return Int(2^(ceil(log2(n))))  # Nearest power of two greater than or equal to n
+end
+
+# Pad both vectors to length N*M - 1 and then ensure both are powers of two
+function pad_and_ensure_power_of_two!(f::AbstractVector{T}, g::AbstractVector{T}) where T
+    N = length(f)
+    M = length(g)
+    
+    # Calculate target length for padding
+    target_length = N + M - 1
+    power_two_length = next_power_of_two(target_length)
+    
+    # Resize and pad f
+    original_f = copy(f)
+    resize!(f, power_two_length)
+    f[1:N] = original_f
+    f[N+1:end] .= zero(T)
+    
+    # Resize and pad g
+    original_g = copy(g)
+    resize!(g, power_two_length)
+    g[1:M] = original_g
+    g[M+1:end] .= zero(T)
+    
+    return nothing
+end
+
+
 
 """
     delta(x::T, ϵ::T) where T<:AbstractFloat -> T
@@ -1411,8 +1534,7 @@ function all_animate_optimized(
     particles_out::BeamTurn{Float64},
     ϕs::Float64, α_c::Float64, mass::Float64, voltage::Float64,
     harmonic::Int64, E0::Float64, σ_E::Float64, σ_z::Float64,
-    filename::String="all_animation_optimized.mp4"
-)
+    filename::String="all_animation_optimized.mp4")
     # Create output directory
     timestamp = string(Dates.format(Dates.now(), "yyyy-mm-dd"))
     folder_storage = "Haissinski/particle_sims/turns$(n_turns)_particles$(length(particles_out[1]))"
@@ -1490,7 +1612,7 @@ voltage = 5e6 ;
 harmonic = 360 ;
 radius = 250. ;
 pipe_radius = .00025 ;
-n_turns = 100 ;
+
 
 α_c = 3.68e-4 ;
 γ = energy/mass ;
@@ -1507,15 +1629,25 @@ freq_rf = 180.15e7 ;
 σ_z = sqrt(2 * π) * SPEED_LIGHT / ω_rev * sqrt(α_c*energy/harmonic/voltage/abs(cos(ϕs))) * σ_E / energy ;
 
 
+n_turns = 100 ;
+particle_states = generate_particles(μ_z, μ_E, σ_z,σ_E, Int64(1e5)) ;
 
-particle_states = generate_particles(μ_z, μ_E, σ_z,σ_E, 10000) ;
-results, plot_potential, plot_WF= longitudinal_evolve(
-    10, particle_states, ϕs, α_c, mass, voltage,
+
+particles_out, plot_potential, plot_WF= longitudinal_evolve(
+    n_turns, particle_states, ϕs, α_c, mass, voltage,
     harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
     use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
-    use_excitation=true, plot_potential=true,plot_WF=true, write_to_file=false, output_file="test1.h5") ; #Use this when you want to see the potential plots, else set plot_potential=false.
+    use_excitation=true, plot_potential=true,plot_WF=true, write_to_file=false, output_file="test1.h5") ; 
+
 plot_potential[10] #If the plot axis is wrong, generate new set of particles and run the simulation again.
+
 plot_WF[1]
+println(typeof(particle_states))
+function test_func(x::StructVector{ParticleState{Float64}, @NamedTuple{z::Vector{Float64}, ΔE::Vector{Float64}, ϕ::Vector{Float64}}, Int64})
+    println(x)
+end
+
+test_func(particle_states.z)
 
 path = "Haissinski/particle_sims/turns$(n_turns)_particles$(length(results[1]))"
 timestamp = string(Dates.format(Dates.now(), "yyyy-mm-dd"))
@@ -1524,10 +1656,10 @@ filename = joinpath(path, "histogram_method.png")
 mkpath(path)
 save(filename, plot_potential[10])
 
-
+scatter(1:5000, [mean(results[i].ΔE) for i in 1:5000], color=:black)
 
 results= longitudinal_evolve(
-    5000, particle_states, ϕs, α_c, mass, voltage,
+    1, particle_states, ϕs, α_c, mass, voltage,
     harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
     use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
     use_excitation=true, plot_potential=false,plot_WF=false, write_to_file=false, output_file="test1.h5") ;
@@ -1538,46 +1670,28 @@ all_animate(100, results, ϕs, α_c, mass, voltage, harmonic,energy, σ_E, σ_z,
 all_animate_optimized(5000, results, ϕs, α_c, mass, voltage, harmonic,energy, σ_E, σ_z, "opt_anim.mp4")
 #Maybe only plot every 5 or 10 turns, also redo how I find the mask z and E values, and use phi to find the mask values.
 
-@btime generate_particles(μ_z, μ_E, σ_z,σ_E, 10000) ; #12.565 ms (20351 allocations: 1.79 MiB)
-@btime generate_particles(μ_z, μ_E, σ_z,σ_E, 100000) ; #78.691 ms (200351 allocations: 12.09 MiB)
 
-@btime longitudinal_evolve(
-    100, particle_states, ϕs, α_c, mass, voltage,
-    harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
-    use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
-    use_excitation=true, plot_potential=false,plot_WF=false, write_to_file=false, output_file="test1.h5") ;
-    #12.138 s (77294 allocations: 80.76 MiB), 1e4, 1e2 turns, corrected potential
-    #189.002 ms (106588 allocations: 67.08 MiB), 1e4, 1e2 turns, corrected potential, histogram method
+@btime generate_particles(μ_z, μ_E, σ_z,σ_E, Int64(1e5)) ; #187.400 ms (200351 allocations: 12.09 MiB)
+@btime generate_particles(μ_z, μ_E, σ_z,σ_E, Int64(1e6)) ; #2.036 s (2000351 allocations: 115.09 MiB)
 
-
-@btime longitudinal_evolve(
-    1000, particle_states, ϕs, α_c, mass, voltage,
-    harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
-    use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
-    use_excitation=true, plot_potential=false,plot_WF=false, write_to_file=false, output_file="test1.h5");
-    #126.088 s (785188 allocations: 800.91 MiB), 1e4 particles, 1e3 turns : with BeamTurn object, corrected potential
-    #2.131 s (1065764 allocations: 663.22 MiB), 1e4, 1e3 turns, corrected potential, histogram method
 
 @btime longitudinal_evolve(
     100, particle_states, ϕs, α_c, mass, voltage,
     harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
     use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
     use_excitation=true, plot_potential=false,plot_WF=false, write_to_file=false, output_file="test1.h5"); 
-    #964.818 s (76188 allocations: 779.83 MiB), 1e5 particles, 1e2 turns : with BeamTurn object, corrected potential
-    # 1.400 s (106688 allocations: 568.02 MiB), 1e5, 1e2 turns, corrected potential, histogram method
+    #545.360 ms (18244 allocations: 398.77 MiB), 1e5 particles, 1e2 turns
+    #17.833 s (25168 allocations: 3.86 GiB), 1e5 particles, 1e2 turns
 
 @btime longitudinal_evolve(
     1000, particle_states, ϕs, α_c, mass, voltage,
     harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
     use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
     use_excitation=true, plot_potential=false, write_to_file=false, output_file="test1.h5"); 
-    #16.308 s (1084411 allocations: 5.47 GiB), 1e5 particles, 1e3 turns : with BeamTurn object, corrected potential
+    #8.153 s (188948 allocations: 3.80 GiB), 1e5 particles, 1e3 turns
+    #83.949 s (233425 allocations: 37.86 GiB), 1e6 particles, 1e3 turns
 
-results = longitudinal_evolve(
-    1000, particle_states, ϕs, α_c, mass, voltage,
-    harmonic, radius, freq_rf, pipe_radius, energy, σ_E,
-    use_wakefield=true, update_η=true, update_E0=true, SR_damping=true,
-    use_excitation=true, plot_potential=false, write_to_file=false, output_file="test1.h5") ;
+
 
 # z_hist, E_hist = histogram_particle_data(particles_out,10 ,save_figs = false)
 # z_hist
@@ -1585,4 +1699,8 @@ results = longitudinal_evolve(
 scatter_plot = scatter_particle_data(results, 100, ϕs, α_c, mass, voltage, harmonic, energy, σ_E, σ_z, filename="scatter_particle.png", ϕ_plot=true, save_fig=false);
 scatter_plot
 
+10^(max(1, ceil(Int, log10(length(@views particle_states.z)))-3)) 
 
+
+
+nthreads()
