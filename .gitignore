@@ -8,15 +8,5 @@ RingOptimization.jl
 SampleRing.jl
 SampleRing2.jl
 SampleRingNoAD.jl
-Haissinski/haissinski.jl
-Haissinski/haissinski2.ipynb
-Haissinski/Haissinski4.ipynb
-Haissinski/Haissinski5.ipynb
-Haissinski/linecheck.jl
-Haissinski/interpolations_testing.jl
-Haissinski/particle_sims
-Haissinski/old_funcs.txt
-Haissinski/without_docs.txt
-Haissinski/HaissinskiMain.txt
-Haissinski/graph_generation.jl
-Haissinski/pres_plots
+phase_space_comparison.mp4
+Haissinski
