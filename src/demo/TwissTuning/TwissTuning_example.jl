@@ -2,15 +2,14 @@ include("ssrf_ring.jl")
 using JuTrack
 using BenchmarkTools
 using Plots
-# Enzyme.API.runtimeActivity!(true)
 
 
 SSRF = ssrf(-1.063770, 0)
 
 function twiss_test(xx, ring=SSRF)
-    # we don't suggest to create a long lattice inside the function. Use twiss_test(ring, xx) instead.
+    # we don't suggest to create a long lattice inside the function.
     # the ring can be set as Const in autodiff function
-    # or use global variable 
+    # or used as a global variable 
     changed_idx = findelem(SSRF, :name, "QL1")
     changed_elems = [KQUAD(len=0.32, k1=xx) for i in 1:length(changed_idx)]
     twi0 = ADperiodicEdwardsTengTwiss(SSRF, 0.0, 1, changed_idx, changed_elems)
@@ -29,10 +28,10 @@ function tuning_test(target)
     grad_vals = Float64[]
     for i in 1:niter
         beta0 = twiss_test(x0)
-        grad = autodiff(Forward, twiss_test, DuplicatedNoNeed, Duplicated(x0, 1.0), Const(SSRF))
+        grad = autodiff(ForwardWithPrimal, twiss_test, Duplicated(x0, 1.0), Const(SSRF))
         x0 -= step * grad[1]
         beta1 = twiss_test(x0)
-        println("beta0: ", beta0, " beta1: ", beta1, " grad:", grad, " at step ", i)
+        println("beta0: ", beta0, " beta1: ", beta1, " grad:", grad[1], " at step ", i)
         push!(x0_vals, x0)
         push!(beta_vals, beta1)
         push!(grad_vals, grad[1])

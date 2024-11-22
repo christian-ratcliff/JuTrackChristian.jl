@@ -1,9 +1,12 @@
 /Manifest.toml
 ChristianTestRing.ipynb
-mypractice.ipynb
 test/multithreading_comparison_multi_particle.ipynb
 test/multithreading_comparison_single_particle.ipynb
 test_rings
-memory.ipynb
 RingOptimization.ipynb
 RingOptimization.jl
+SampleRing.jl
+SampleRing2.jl
+SampleRingNoAD.jl
+phase_space_comparison.mp4
+Haissinski

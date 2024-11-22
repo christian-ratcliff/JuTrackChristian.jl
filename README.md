@@ -1,33 +1,19 @@
 # JuTrack
 
 A Julia-based package that enables advanced auto differentiation (AD) for symplectic 6-D particle tracking in particle accelerators.
+A mannual can be found at [here](https://msu-beam-dynamics.github.io/JuTrack.jl/).
 
 # Installation
 
-* Install Julia 1.9.4 at [here](https://julialang.org/downloads/oldreleases/). Current version is developed based on Julia 1.9.4. Using an unexpected version may result in an error.
+* Install Julia at [here](https://julialang.org/downloads/oldreleases/) (1.10.4 is preferred).
 
-* Download the package
-```
-git clone https://github.com/MSU-Beam-Dynamics/JuTrack.jl.git
-```
-
-* Open Julia REPL. Move to the package folder.
-```
-cd("path-to-the-package")
-```
-
-* Install the required dependencies
+* Online installation of the package via
 ```
 using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
+Pkg.add(url="https://github.com/MSU-Beam-Dynamics/JuTrack.jl")
 ```
 
 # Import the package in Julia
-```
-using Pkg 
-Pkg.add(path="path-to-the-package")
-```
 ```
 using JuTrack
 ```
@@ -69,16 +55,6 @@ twi = twissring(RING, 0.0, 1)
 ```
 
 # Automatic differentiation
-Obtain 4*4 Jacobian matrix of a lattice of specific initial condition [0.01 0.0 0.01 0.0]
-```
-function obtain_jacobian(x)
-    beam = Beam([x[1] x[2] x[3] x[4] 0.0 0.0], energy=3.5e9)
-    ringpass!(LINE, beam, 1)
-    return beam.r[1:4]
-end
-J = jacobian(Forward, obtain_jacobian, [0.01, 0.0, 0.01, 0.0], Val(4))
-```
-
 Obtain derivatives of tracking result w.r.t the quadrupole strength k1
 ```
 function tracking_wrt_k1(x)
@@ -97,7 +73,7 @@ function tracking_wrt_k1(x)
     return beam.r
 end
 k1 = -0.9
-results, derivatives = autodiff(Forward, tracking_wrt_k1, Duplicated, Duplicated(k1, 1.0))
+derivatives, results = autodiff(ForwardWithPrimal, tracking_wrt_k1, Duplicated(k1, 1.0))
 ```
 
 # Parallel computation setting
@@ -130,15 +106,12 @@ println("Number of threads in use: ", Threads.nthreads())
 
 Parallel computing is available for multi-particle tracking using:
 ```
-plinepass(beamline, beam)
+plinepass!(beamline, beam)
 ```
 or 
 ```
-pringpass(beamline, beam, nturns)
+pringpass!(beamline, beam, nturns)
 ```
 
 # Known issues
 * This package currently supports forward AD. Backward AD is still under development.
-
-* This package is developed and tested on Julia 1.9.4. Please up/downgrade the Julia version if there is a issue.
-
